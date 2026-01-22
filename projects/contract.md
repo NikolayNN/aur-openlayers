@@ -1,5 +1,7 @@
 # Map Framework Contracts
 
+целевая версия openlayers 6.5.0
+
 ## Цель
 
 Декларативно описать слои/фичи/стили/взаимодействия, а фреймворк сам:
@@ -13,8 +15,24 @@
 
 Все interactions работают по одному принципу:
 - hit-test делается ПОСЛОЙНО (top→down),
-- обработчик interaction получает массивы models/features,
+- обработчик interaction получает массив `items` (HitItem: { model, feature }),
   НО ТОЛЬКО ДЛЯ ТЕКУЩЕГО СЛОЯ (1 слой = 1 featureDescriptor).
+- порядок элементов в массиве `items` не гарантируется;
+  если важен приоритет (например, выбор одного элемента из нескольких),
+  он должен быть определён в обработчике interaction.
+
+### Кластеризация
+
+Если для слоя включена кластеризация, правила hit-test дополняются следующим образом:
+
+- interactions (`feature.interactions.*`) срабатывают **только для обычных (не кластерных) фич слоя**.
+- если hit-test попал в cluster-feature:
+  - при `size === 1` фреймворк **unwrap’ит кластер** в исходную обычную feature и
+    вызывает `feature.interactions.*` как обычно (`items` относятся к этой одной фиче);
+  - при `size > 1` `feature.interactions.*` **НЕ вызываются**, так как это кластер, а не одиночная фича.  
+    Поведение по клику / hover / select / popup для кластера
+    настраивается отдельно через `descriptor.clustering.*`
+    (например, `expandOnClick`, `clustering.interactions`, `clustering.popup`).
 
 ## PROPAGATION (ПРОКИДЫВАНИЕ СОБЫТИЯ НА СЛОИ НИЖЕ)
 
@@ -82,6 +100,29 @@ export type StyleView = {
 export type FeatureState = FeatureStyleState | FeatureStyleState[];
 ```
 
+### M - Model
+Generic модель представляет бизнес сущность
+Правило иммутабельности:
+   - считается иммутабельной моделью.
+   - Любые изменения делаются ТОЛЬКО через `mutate/mutateMany` (или через внешний `setModels`).
+   - update(prev) возвращает next (immutable).
+   - если next === prev → no-op (изменения нет).
+   - Мутация prev по ссылке запрещена.
+Поведение фреймворка:
+   - Если возвращён новый объект — фреймворк синхронизирует геометрию и обновляет слой.
+
+### HitItem
+
+Связка model + feature (результат hit-test на слое).
+
+```ts
+export type HitItem<M, G extends Geometry> = {
+  model: M;
+  feature: Feature<G>;
+};
+```
+
+
 ### InteractionBase
 
 Базовые поля для любой interaction.
@@ -93,13 +134,27 @@ export type InteractionBase = {
    * Если enabled не задан — считается включенной.
    */
   enabled?: Enabled;
+
   /** UX: курсор декларативно */
   cursor?: string | { enter?: string; leave?: string };
+
   /**
-   * Какие состояния применить при активности interaction.
+   * Состояния, которые применяются на время активности interaction.
+   *
+   * - Если `state` ЗАДАН:
+   *   фреймворк сам управляет этим состоянием:
+   *   применяет при активности и снимает при деактивации.
+   *
+   * - Если `state` НЕ ЗАДАН:
+   *   фреймворк НЕ управляет состояниями вообще:
+   *   он НЕ применяет их автоматически и НЕ снимает их автоматически.
+   *   Управление полностью на стороне пользователя в хуках interaction
+   *   (onEnter/onLeave/onSelect/onClear/onStart/onChange/onEnd и т.п.).
+   *
    * Разрешена композиция: ["HOVER", "SELECTED"].
    */
   state?: FeatureState;
+
   /**
    * Пропагация события "вниз" по слоям, если обработчик на этом слое
    * вернул handled=true (см. возвращаемые значения on*).
@@ -123,12 +178,29 @@ export type InteractionHandlerResult = boolean | void;
 ```
 
 ### VectorLayerApi
-
 API слоя (то, что нужно дергать из других descriptor’ов и бизнес-кода).
 
 Ключевое:
 - mutate(...) — ЕДИНСТВЕННЫЙ легкий контракт для авто model→feature.
 - batch(...) — батчинг на уровне контекста.
+
+```typescript
+export type ModelChangeReason =
+  | "mutate"
+  | "translate"
+  | "modify";
+
+export type ModelChange<M> = {
+  /** предыдущая версия модели */
+  prev: M;
+  /** обновлённая версия модели (immutable) */
+  next: M;
+  /** причина изменения */
+  reason: ModelChangeReason;
+};
+
+export type Unsubscribe = () => void;
+```
 
 ```typescript
 export type VectorLayerApi<M, G extends Geometry> = {
@@ -141,14 +213,18 @@ export type VectorLayerApi<M, G extends Geometry> = {
   /** найти модель по feature */
   getModelByFeature: (feature: Feature<G>) => M | undefined;
   /**
-   * ЛЁГКИЙ КОНТРАКТ для авто model->feature:
-   * - бизнес-код мутирует модель только здесь
-   * - фреймворк после fn гарантированно сделает:
-   *    syncFeatureFromModel(model) + (batched) invalidate()
+   * IMMUTABLE update:
+   * - бизнес-код НЕ мутирует модель по ссылке
+   * - update(prev) обязан вернуть next
+   * - если next === prev → no-op (sync/invalidate могут не выполняться)
+   * - фреймворк после update гарантированно сделает:
+   *   syncFeatureFromModel(next) + (batched) invalidate()
    */
-  mutate: (id: string | number, fn: (model: M) => void) => void;
+  mutate: (id: string | number, update: (prev: M) => M) => void;
+  
   /** массовая мутация (опционально) */
-  mutateMany?: (ids: Array<string | number>, fn: (model: M) => void) => void;
+  mutateMany?: (ids: Array<string | number>, update: (prev: M) => M) => void;
+  
   /**
    * Кластеризация (доступна, если descriptor.clustering задан в schema)
    * Включение/выключение переключает source слоя (plain ↔ cluster).
@@ -156,6 +232,20 @@ export type VectorLayerApi<M, G extends Geometry> = {
   setClusteringEnabled?: (enabled: boolean) => void;
   /** Текущее состояние кластеризации */
   isClusteringEnabled?: () => boolean;
+
+  /**
+   * События изменения моделей, произведённых ВНУТРИ карты
+   * (mutate / translate / modify).
+   *
+   * Используется для синхронизации с внешним store / backend / UI.
+   *
+   * Гарантии:
+   * - модель уже обновлена в слое
+   * - feature уже синхронизирована
+   * - invalidate запланирован (batched)
+   * - изменения могут приходить батчем
+   */
+  onModelsChanged?: (cb: (changes: ModelChange<M>[]) => void) => Unsubscribe;
 };
 ```
 
@@ -206,8 +296,8 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
   geometry: {
     /** model -> geometry */
     fromModel: (model: M) => G;
-    /** geometry -> model (мутация модели) */
-    applyGeometryToModel: (model: M, geometry: G) => void;
+    /** geometry -> next model (immutable update) */
+    applyGeometryToModel: (prev: M, geometry: G) => M;
     /** хук после создания feature */
     onCreate?: (args: { feature: Feature<G>; model: M; ctx: MapContext }) => void;
   };
@@ -228,8 +318,8 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     >;
     /** opts -> Style | Style[] (+ view для LOD) */
     render: (opts: OPTS, view: StyleView) => Style | Style[];
-    /** опциональный ключ кеша (WeakMap по object или string) */
-    cacheKey?: (opts: OPTS, view: StyleView) => object | string;
+    /** опциональный ключ кеша */
+    cacheKey?: (opts: OPTS, view: StyleView) => string;
     /** приоритет мерджа состояний (если порядок важен) */
     statePriority?: FeatureStyleState[];
   };
@@ -247,37 +337,149 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
    *
    * ВАЖНО: Для hit-test (click/hover/select) обработчики получают массивы
    * ТОЛЬКО ТЕКУЩЕГО СЛОЯ.
+   *
+   * ---------------------------------------------------------------------------
+   * Правило конфликта: select vs click
+   * ---------------------------------------------------------------------------
+   *
+   * Для одного физического события клика фреймворк использует единый
+   * управляемый pipeline обработки (hit-test + interactions),
+   * а не несколько независимых подписчиков на событие.
+   *
+   * Если на одном и том же слое одновременно включены `select` и `click`,
+   * событие клика на этом слое обрабатывается в следующем порядке:
+   *
+   *   1. select
+   *   2. click
+   *
+   * Если обработчик `select` вернул `handled = true` и при этом
+   * `select.propagation` НЕ равно `"continue"`,
+   * обработчик `click` для этого слоя НЕ вызывается.
+   *
+   * После обработки слоя дальнейшее распространение события на слои ниже
+   * определяется правилами `InteractionBase.propagation`.
+   *
+   * ---------------------------------------------------------------------------
+   * pickTarget — выбор цели для translate/modify при конфликте
+   * ---------------------------------------------------------------------------
+   *
+   * Зачем:
+   * При старте `translate`/`modify` под курсором может оказаться несколько фич одного слоя.
+   * Эти интеракции работают только с ОДНОЙ активной целью (target).
+   *
+   * Термины:
+   * - candidate — HitItem (model+feature), попавший под hit-test на старте интеракции.
+   * - target — выбранный один HitItem, который будет редактироваться/перетаскиваться.
+   *
+   * Контракт:
+   * 1) Сбор кандидатов
+   * - Фреймворк делает hit-test на ТЕКУЩЕМ слое и формирует `candidates: HitItem[]`.
+   * - `candidates` содержит элементы ТОЛЬКО текущего слоя (1 слой = 1 featureDescriptor).
+   * - Порядок элементов в `candidates` НЕ гарантируется.
+   * - Если включена кластеризация:
+   *   - hit по cluster-feature size===1 -> unwrap -> в candidates попадает обычная feature (HitItem).
+   *   - hit по cluster-feature size>1  -> translate/modify для feature НЕ стартует
+   *     (кластер — отдельная сущность; поведение настраивается через `descriptor.clustering.*`).
+   *
+   * 2) Выбор target
+   * - Если `pickTarget` ЗАДАН:
+   *     фреймворк вызывает `pickTarget({ candidates, ctx, event })`.
+   *     - Если возвращён `HitItem` -> он становится target.
+   *     - Если возвращено `null` или `undefined` -> интеракция НЕ стартует (игнорируется).
+   *
+   * - Если `pickTarget` НЕ задан:
+   *     - Если `candidates.length > 0` -> target = `candidates[0]`.
+   *     - Если `candidates.length === 0` -> интеракция НЕ стартует.
+   *
+   * 3) Жизненный цикл и стабильность target
+   *
+   * - `pickTarget` вызывается ТОЛЬКО на старте интеракции.
+   *
+   * - Возвращённый `HitItem` используется ТОЛЬКО как выбор цели.
+   *   Фреймворк НЕ хранит ссылки на `item.model` или `item.feature`
+   *   как источник истины.
+   *
+   * - После выбора цели фреймворк фиксирует `targetKey`
+   *   (обычно `descriptor.id(item.model)`).
+   *
+   * - Перед каждым вызовом `onStart / onChange / onEnd`
+   *   фреймворк выполняет `resolveTarget(targetKey)`:
+   *
+   *     - если по `targetKey` найдена актуальная модель и feature —
+   *       в хук передаётся НОВЫЙ `HitItem { model, feature }`;
+   *
+   *     - если цель больше не существует
+   *       (модель удалена / feature пересоздана / слой обновлён),
+   *       интеракция безопасно прерывается:
+   *         - `onChange` / `onEnd` НЕ вызываются
+   *         - интеракция считается завершённой.
+   *
+   * - Фреймворк НЕ пере-выбирает target по курсору на `onChange`,
+   *   даже если под курсором появились другие фичи.
+   *
+   * 4) Возвращаемые значения и propagation
+   * - Возврат `null/undefined` из `pickTarget` означает только "не стартовать" данную интеракцию.
+   *   Это НЕ является `handled=true` само по себе (событие может обрабатываться другими интеракциями
+   *   и/или слоями по правилам propagation).
+   * - `handled/propagation` применяются к `onStart/onChange/onEnd` как обычно.
+   *
+   * Рекомендуемая сигнатура:
+   * pickTarget?: (args: {
+   *   candidates: Array<HitItem<M, G>>;
+   *   ctx: MapContext;
+   *   event: TranslateEvent | ModifyEvent;
+   * }) => HitItem<M, G> | null | undefined;
    */
   interactions?: {
+    
     click?: InteractionBase & {
       hitTolerance?: number;
+      /**
+       * NOTE about `InteractionBase.state` for click:
+       * Click — событие без жизненного цикла (нет enter/leave или start/end),
+       * поэтому если `state` задан, фреймворк НЕ применяет и НЕ снимает его автоматически.
+       * Если нужен "flash"/подсветка по клику — делайте это вручную в `onClick`.
+       */
       onClick: (args: {
-        models: M[];
-        features: Feature<G>[];
+        items: Array<HitItem<M, G>>;
         ctx: MapContext;
         event: MapBrowserEvent<UIEvent>;
       }) => InteractionHandlerResult;
     };
+    
+    doubleClick?: InteractionBase & {
+      hitTolerance?: number;
+
+      /**
+       * NOTE about `InteractionBase.state` for doubleClick:
+       * DoubleClick — тоже событие без жизненного цикла,
+       * поэтому авто-применения/снятия `state` нет. Подсветка (если нужна) — вручную в `onDoubleClick`.
+       */
+      onDoubleClick: (args: {
+        items: Array<HitItem<M, G>>;
+        ctx: MapContext;
+        event: MapBrowserEvent<UIEvent>;
+      }) => InteractionHandlerResult;
+    };
+    
     hover?: InteractionBase & {
       hitTolerance?: number;
       onEnter?: (args: {
-        models: M[];
-        features: Feature<G>[];
+        items: Array<HitItem<M, G>>;
         ctx: MapContext;
         event: MapBrowserEvent<UIEvent>;
       }) => InteractionHandlerResult;
       onLeave?: (args: {
-        models: M[];
-        features: Feature<G>[];
+        items: Array<HitItem<M, G>>;
         ctx: MapContext;
         event: MapBrowserEvent<UIEvent>;
       }) => InteractionHandlerResult;
     };
+    
     select?: InteractionBase & {
       hitTolerance?: number;
       onSelect?: (args: {
-        models: M[];
-        features: Feature<G>[];
+        items: Array<HitItem<M, G>>;
         ctx: MapContext;
         event: MapBrowserEvent<UIEvent>;
       }) => InteractionHandlerResult;
@@ -286,50 +488,57 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
         event: MapBrowserEvent<UIEvent>;
       }) => InteractionHandlerResult;
     };
+    
     /** Translate = drag&drop целиком */
     translate?: InteractionBase & {
       moveThrottleMs?: number;
+      pickTarget?: (args: {
+        candidates: Array<HitItem<M, G>>;
+        ctx: MapContext;
+        event: TranslateEvent; 
+      }) => HitItem<M, G> | null | undefined;
       onStart?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: TranslateEvent;
       }) => InteractionHandlerResult;
       onChange?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: TranslateEvent;
       }) => InteractionHandlerResult;
       onEnd?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: TranslateEvent;
       }) => InteractionHandlerResult;
     };
+    
     /** Modify = редактирование геометрии (вершины/сегменты) */
     modify?: InteractionBase & {
       moveThrottleMs?: number;
+      pickTarget?: (args: {
+        candidates: Array<HitItem<M, G>>;
+        ctx: MapContext;
+        event: ModifyEvent;
+      }) => HitItem<M, G> | null | undefined;
       onStart?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: ModifyEvent;
       }) => InteractionHandlerResult;
       onChange?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: ModifyEvent;
       }) => InteractionHandlerResult;
       onEnd?: (args: {
-        model: M;
-        feature: Feature<G>;
+        item: HitItem<M, G>;
         ctx: MapContext;
         event: ModifyEvent;
       }) => InteractionHandlerResult;
     };
+    
   };
   /**
    * Popup (опционально)
@@ -364,7 +573,7 @@ export type LayerClustering<M> = {
    */
   clusterStyle: {
     render: (args: { models: M[]; size: number; view: StyleView }) => Style | Style[];
-    cacheKey?: (args: { models: M[]; size: number; view: StyleView }) => object | string;
+    cacheKey?: (args: { models: M[]; size: number; view: StyleView }) => string;
   };
   /**
    * Popup для кластера (конфигурируемый)
