@@ -16,7 +16,7 @@ import type {
   VectorLayerDescriptor,
 } from '../public/types';
 import { createMapContext } from './map-context';
-import { InteractionManager } from './interaction-manager';
+import { InteractionManager, HitTestResult } from './interaction-manager';
 import { getFeatureStates } from './style/feature-states';
 
 type Model = { id: string; value: number; coords?: [number, number] };
@@ -74,7 +74,7 @@ const buildManager = (
   map: Map,
   schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]>,
   layerEntries: Array<{ id: string; layer: VectorLayer }>,
-  hitTest: (args: { layerId: string; hitTolerance: number }) => Array<HitItem<any, any>>,
+  hitTest?: (args: { layerId: string; hitTolerance: number }) => HitTestResult,
   apiFactory: (id: string) => VectorLayerApi<any, any> = () => createApi(),
 ) => {
   const layers: Record<string, VectorLayer> = {};
@@ -90,7 +90,9 @@ const buildManager = (
     schema,
     layers,
     apis,
-    hitTest: ({ layerId, hitTolerance }) => hitTest({ layerId, hitTolerance }),
+    hitTest: hitTest
+      ? ({ layerId, hitTolerance }) => hitTest({ layerId, hitTolerance })
+      : undefined,
   });
 };
 
@@ -144,7 +146,7 @@ describe('InteractionManager', () => {
       ],
       ({ layerId }) => {
         order.push(layerId);
-        return [];
+        return { items: [] };
       },
     );
 
@@ -206,7 +208,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      ({ layerId }) => itemsByLayer[layerId],
+      ({ layerId }) => ({ items: itemsByLayer[layerId] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -242,7 +244,7 @@ describe('InteractionManager', () => {
       [{ id: 'a', layer: layer.layer }],
       ({ hitTolerance }) => {
         tolerances.push(hitTolerance);
-        return [];
+        return { items: [] };
       },
     );
 
@@ -300,7 +302,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      () => [createHitItem({ id: 'x', value: 1 })],
+      () => ({ items: [createHitItem({ id: 'x', value: 1 })] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -358,7 +360,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      () => [createHitItem({ id: 'x', value: 1 })],
+      () => ({ items: [createHitItem({ id: 'x', value: 1 })] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -416,7 +418,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      () => [createHitItem({ id: 'x', value: 1 })],
+      () => ({ items: [createHitItem({ id: 'x', value: 1 })] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -491,7 +493,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      ({ layerId }) => hitSequence[index][layerId],
+      ({ layerId }) => ({ items: hitSequence[index][layerId] }),
     );
 
     manager.handlePointerMove(createEvent(map, 'pointermove'));
@@ -564,7 +566,7 @@ describe('InteractionManager', () => {
         { id: 'a', layer: layerA.layer },
         { id: 'b', layer: layerB.layer },
       ],
-      ({ layerId }) => hitSequence[index][layerId],
+      ({ layerId }) => ({ items: hitSequence[index][layerId] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -616,7 +618,7 @@ describe('InteractionManager', () => {
       map,
       schema,
       [{ id: 'a', layer: layer.layer }],
-      () => [itemA],
+      () => ({ items: [itemA] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -662,7 +664,7 @@ describe('InteractionManager', () => {
       map,
       schema,
       [{ id: 'a', layer: layer.layer }],
-      () => [itemA],
+      () => ({ items: [itemA] }),
     );
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -778,12 +780,12 @@ describe('InteractionManager', () => {
       ],
       ({ layerId }) => {
         if (layerId === 'a') {
-          return [itemA];
+          return { items: [itemA] };
         }
         if (layerId === 'b') {
-          return [itemB];
+          return { items: [itemB] };
         }
-        return [itemC];
+        return { items: [itemC] };
       },
     );
 
@@ -847,7 +849,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA, itemB],
+        () => ({ items: [itemA, itemB] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -881,7 +883,7 @@ describe('InteractionManager', () => {
         map,
         schemaWithoutPick,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemB, itemA],
+        () => ({ items: [itemB, itemA] }),
       );
 
       managerWithoutPick.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -925,7 +927,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -972,7 +974,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1046,7 +1048,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1105,7 +1107,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1150,7 +1152,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1214,7 +1216,7 @@ describe('InteractionManager', () => {
           { id: 'a', layer: layerA.layer },
           { id: 'b', layer: layerB.layer },
         ],
-        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+        ({ layerId }) => ({ items: layerId === 'a' ? [itemA] : [itemB] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1266,7 +1268,7 @@ describe('InteractionManager', () => {
           { id: 'a', layer: layerA.layer },
           { id: 'b', layer: layerB.layer },
         ],
-        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+        ({ layerId }) => ({ items: layerId === 'a' ? [itemA] : [itemB] }),
       );
 
       managerContinue.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1318,7 +1320,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA, itemB],
+        () => ({ items: [itemA, itemB] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1352,7 +1354,7 @@ describe('InteractionManager', () => {
         map,
         schemaWithoutPick,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemB, itemA],
+        () => ({ items: [itemB, itemA] }),
       );
 
       managerWithoutPick.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1410,7 +1412,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1459,7 +1461,7 @@ describe('InteractionManager', () => {
         [{ id: 'a', layer: layer.layer }],
         ({ hitTolerance }) => {
           hitTolerances.push(hitTolerance);
-          return [itemA];
+          return { items: [itemA] };
         },
       );
 
@@ -1503,7 +1505,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1578,7 +1580,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1641,7 +1643,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1694,7 +1696,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1755,7 +1757,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
         () => api,
       );
 
@@ -1804,7 +1806,7 @@ describe('InteractionManager', () => {
         map,
         schema,
         [{ id: 'a', layer: layer.layer }],
-        () => [itemA],
+        () => ({ items: [itemA] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1874,7 +1876,7 @@ describe('InteractionManager', () => {
           { id: 'a', layer: layerA.layer },
           { id: 'b', layer: layerB.layer },
         ],
-        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+        ({ layerId }) => ({ items: layerId === 'a' ? [itemA] : [itemB] }),
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1926,11 +1928,273 @@ describe('InteractionManager', () => {
           { id: 'a', layer: layerA.layer },
           { id: 'b', layer: layerB.layer },
         ],
-        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+        ({ layerId }) => ({ items: layerId === 'a' ? [itemA] : [itemB] }),
       );
 
       managerContinue.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
       expect(calls).toEqual(['a', 'b']);
+    });
+  });
+
+  describe('clustering interactions', () => {
+    it('unwraps single clusters for feature interactions', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const model: Model = { id: 'a', value: 1 };
+      const innerFeature = new Feature<Point>({ geometry: new Point([0, 0]) });
+      innerFeature.setId('a');
+      innerFeature.set('model', model);
+
+      const clusterFeature = new Feature<Point>({
+        geometry: new Point([0, 0]),
+      });
+      clusterFeature.set('features', [innerFeature]);
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+              interactions: {
+                click: {
+                  onClick: ({ items }) => {
+                    expect(items.length).toBe(1);
+                    expect(items[0].feature).toBe(innerFeature);
+                    return true;
+                  },
+                },
+                hover: {
+                  onEnter: ({ items }) => {
+                    expect(items.length).toBe(1);
+                    expect(items[0].model).toEqual(model);
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      spyOn(map, 'forEachFeatureAtPixel').and.callFake(
+        (
+          _pixel,
+          callback,
+          options?: { layerFilter?: (layer: VectorLayer) => boolean },
+        ) => {
+          if (options?.layerFilter?.(layer.layer as VectorLayer)) {
+            callback(
+              clusterFeature,
+              layer.layer as VectorLayer,
+              innerFeature.getGeometry()!,
+            );
+          }
+          return undefined;
+        },
+      );
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        undefined,
+        () => createApi(),
+      );
+
+      manager.handlePointerMove(createEvent(map, 'pointermove'));
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+    });
+
+    it('routes size>1 cluster clicks to expand/popup and stops propagation', () => {
+      const map = createMap();
+      const view = map.getView();
+      const layerA = createLayer('a', 2);
+      const layerB = createLayer('b', 1);
+
+      const modelA: Model = { id: 'a', value: 1, coords: [0, 0] };
+      const modelB: Model = { id: 'b', value: 2, coords: [10, 10] };
+      const featureA = new Feature<Point>({ geometry: new Point([0, 0]) });
+      featureA.set('model', modelA);
+      const featureB = new Feature<Point>({ geometry: new Point([10, 10]) });
+      featureB.set('model', modelB);
+      const clusterFeature = new Feature<Point>({ geometry: new Point([5, 5]) });
+
+      const onClick = jasmine.createSpy('onClick');
+      const onSelect = jasmine.createSpy('onSelect');
+      const onPopup = jasmine.createSpy('popup').and.returnValue({
+        model: modelA,
+        content: 'cluster',
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+              interactions: {
+                click: { onClick },
+                select: { onSelect },
+              },
+            },
+            clustering: {
+              clusterStyle: { render: () => [] },
+              expandOnClick: {
+                mode: 'zoomToExtent',
+              },
+              popup: {
+                enabled: true,
+                item: onPopup,
+              },
+            },
+          },
+          {
+            id: 'b',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+              interactions: {
+                click: {
+                  onClick: () => {
+                    throw new Error('should not reach lower layer');
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const hitTest = ({ layerId }: { layerId: string }) =>
+        layerId === 'a'
+          ? {
+              items: [],
+              cluster: {
+                feature: clusterFeature,
+                features: [featureA, featureB],
+                size: 2,
+              },
+            }
+          : {
+              items: [createHitItem({ id: 'lower', value: 1 })],
+            };
+
+      const apiFactory = (id: string) =>
+        createApi({
+          isClusteringEnabled: () => id === 'a',
+        });
+
+      const fitSpy = spyOn(view, 'fit').and.stub();
+
+      const manager = buildManager(
+        map,
+        schema,
+        [
+          { id: 'a', layer: layerA.layer },
+          { id: 'b', layer: layerB.layer },
+        ],
+        hitTest,
+        apiFactory,
+      );
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+      expect(onClick).not.toHaveBeenCalled();
+      expect(onSelect).not.toHaveBeenCalled();
+      expect(fitSpy).toHaveBeenCalled();
+      expect(onPopup).toHaveBeenCalledWith({
+        models: [modelA, modelB],
+        size: 2,
+        ctx: jasmine.any(Object),
+      });
+    });
+
+    it('skips expand when disabled and allows propagation', () => {
+      const map = createMap();
+      const view = map.getView();
+      const layerA = createLayer('a', 2);
+      const layerB = createLayer('b', 1);
+
+      const modelA: Model = { id: 'a', value: 1, coords: [0, 0] };
+      const modelB: Model = { id: 'b', value: 2, coords: [10, 10] };
+      const featureA = new Feature<Point>({ geometry: new Point([0, 0]) });
+      featureA.set('model', modelA);
+      const featureB = new Feature<Point>({ geometry: new Point([10, 10]) });
+      featureB.set('model', modelB);
+      const clusterFeature = new Feature<Point>({ geometry: new Point([5, 5]) });
+
+      const lowerClick = jasmine.createSpy('lowerClick');
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+            },
+            clustering: {
+              clusterStyle: { render: () => [] },
+            },
+          },
+          {
+            id: 'b',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+              interactions: {
+                click: { onClick: () => lowerClick() },
+              },
+            },
+          },
+        ],
+      };
+
+      const hitTest = ({ layerId }: { layerId: string }) =>
+        layerId === 'a'
+          ? {
+              items: [],
+              cluster: {
+                feature: clusterFeature,
+                features: [featureA, featureB],
+                size: 2,
+              },
+            }
+          : {
+              items: [createHitItem({ id: 'lower', value: 1 })],
+            };
+
+      const apiFactory = (id: string) =>
+        createApi({
+          isClusteringEnabled: () => id === 'a',
+        });
+
+      const fitSpy = spyOn(view, 'fit').and.stub();
+      const animateSpy = spyOn(view, 'animate').and.stub();
+
+      const manager = buildManager(
+        map,
+        schema,
+        [
+          { id: 'a', layer: layerA.layer },
+          { id: 'b', layer: layerB.layer },
+        ],
+        hitTest,
+        apiFactory,
+      );
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+      expect(fitSpy).not.toHaveBeenCalled();
+      expect(animateSpy).not.toHaveBeenCalled();
+      expect(lowerClick).toHaveBeenCalled();
     });
   });
 });

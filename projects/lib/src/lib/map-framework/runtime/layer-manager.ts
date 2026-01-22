@@ -1,4 +1,5 @@
 import VectorLayer from 'ol/layer/Vector';
+import ClusterSource from 'ol/source/Cluster';
 import VectorSource from 'ol/source/Vector';
 import type OlMap from 'ol/Map';
 
@@ -9,6 +10,7 @@ import type {
 } from '../public/types';
 import { createMapContext } from './map-context';
 import { InteractionManager } from './interaction-manager';
+import { ClusteredVectorLayer } from './clustered-layer';
 import { PlainVectorLayer } from './plain-layer';
 
 const createInvalidateScheduler = (layer: VectorLayer<VectorSource<any>>): (() => void) => {
@@ -35,6 +37,13 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
 
     schema.layers.forEach((descriptor) => {
       const source = new VectorSource<any>();
+      const clusterSource = descriptor.clustering
+        ? new ClusterSource({
+            source,
+            distance: descriptor.clustering.distance,
+            minDistance: descriptor.clustering.minDistance,
+          })
+        : null;
       const layer = new VectorLayer({ source });
       if (descriptor.zIndex !== undefined) {
         layer.setZIndex(descriptor.zIndex);
@@ -47,13 +56,22 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
       }
       layer.set('id', descriptor.id);
 
-      const api = new PlainVectorLayer({
-        descriptor,
-        layer,
-        source,
-        ctx,
-        scheduleInvalidate: createInvalidateScheduler(layer),
-      });
+      const api = descriptor.clustering
+        ? new ClusteredVectorLayer({
+            descriptor,
+            layer,
+            source,
+            clusterSource: clusterSource!,
+            ctx,
+            scheduleInvalidate: createInvalidateScheduler(layer),
+          })
+        : new PlainVectorLayer({
+            descriptor,
+            layer,
+            source,
+            ctx,
+            scheduleInvalidate: createInvalidateScheduler(layer),
+          });
 
       this.layers[descriptor.id] = layer;
       this.apis[descriptor.id] = api;

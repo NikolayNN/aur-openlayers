@@ -17,3 +17,7 @@ export const getFeatureStates = (feature: Feature<Geometry>): string[] => {
 export const setFeatureStates = (feature: Feature<Geometry>, states: string[]): void => {
   feature.set(STATES_KEY, states);
 };
+
+export const clearFeatureStates = (feature: Feature<Geometry>): void => {
+  feature.set(STATES_KEY, []);
+};

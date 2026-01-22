@@ -6,11 +6,13 @@ import type { StyleFunction } from 'ol/style/Style';
 import type {
   FeatureDescriptor,
   FeatureStyleState,
+  LayerClustering,
   MapContext,
   MaybeFn,
   Patch,
   StyleView,
 } from '../../public/types';
+import { getClusterFeatures } from '../cluster-utils';
 import { getFeatureStates } from './feature-states';
 import { StyleCache } from './style-cache';
 
@@ -93,5 +95,59 @@ export const createStyleFunction = <M, G extends Geometry, OPTS extends object>(
     }
 
     return style.render(opts, view);
+  };
+};
+
+export type ClusterStylePipelineOptions<M, G extends Geometry, OPTS extends object> = {
+  descriptor: FeatureDescriptor<M, G, OPTS>;
+  clustering: LayerClustering<M>;
+  ctx: MapContext;
+  registryGetModel: (feature: Feature<Geometry>) => M | undefined;
+  map?: OlMap;
+};
+
+export const createClusterStyleFunction = <M, G extends Geometry, OPTS extends object>(
+  options: ClusterStylePipelineOptions<M, G, OPTS>,
+): StyleFunction => {
+  const { clustering, registryGetModel, map } = options;
+  const baseStyle = createStyleFunction(options);
+  const cache = new StyleCache();
+
+  return (feature, resolution) => {
+    if (!(feature instanceof Feature)) {
+      return [];
+    }
+    const clusterFeatures = getClusterFeatures(feature);
+    if (!clusterFeatures) {
+      return baseStyle(feature, resolution);
+    }
+
+    const size = clusterFeatures.length;
+    if (size === 1) {
+      return baseStyle(clusterFeatures[0], resolution);
+    }
+
+    const models = clusterFeatures
+      .map((clusterFeature) => registryGetModel(clusterFeature))
+      .filter((model): model is M => model !== undefined);
+    const view: StyleView = {
+      resolution,
+      zoom: map?.getView().getZoom(),
+    };
+
+    if (clustering.clusterStyle.cacheKey) {
+      const key = clustering.clusterStyle.cacheKey({ models, size, view });
+      if (key) {
+        const cached = cache.get(key);
+        if (cached) {
+          return cached;
+        }
+        const rendered = clustering.clusterStyle.render({ models, size, view });
+        cache.set(key, rendered);
+        return rendered;
+      }
+    }
+
+    return clustering.clusterStyle.render({ models, size, view });
   };
 };

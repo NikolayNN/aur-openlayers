@@ -6,6 +6,9 @@ import type VectorLayer from 'ol/layer/Vector';
 import Collection from 'ol/Collection';
 import type { ModifyEvent } from 'ol/interaction/Modify';
 import type { TranslateEvent } from 'ol/interaction/Translate';
+import ClusterSource from 'ol/source/Cluster';
+import type VectorSource from 'ol/source/Vector';
+import { createEmpty, extend, isEmpty } from 'ol/extent';
 
 import type {
   FeatureState,
@@ -17,6 +20,7 @@ import type {
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../public/types';
+import { getClusterFeatures } from './cluster-utils';
 import { getFeatureStates, setFeatureStates } from './style/feature-states';
 
 type LayerEntry = {
@@ -61,7 +65,18 @@ export type HitTestArgs = {
   hitTolerance: number;
 };
 
-export type HitTestFn = (args: HitTestArgs) => Array<HitItem<any, any>>;
+export type ClusterHit = {
+  feature: Feature<Geometry>;
+  features: Array<Feature<Geometry>>;
+  size: number;
+};
+
+export type HitTestResult = {
+  items: Array<HitItem<any, any>>;
+  cluster?: ClusterHit;
+};
+
+export type HitTestFn = (args: HitTestArgs) => HitTestResult;
 
 export type InteractionManagerOptions<
   Layers extends readonly VectorLayerDescriptor<any, any, any, any>[]
@@ -99,9 +114,15 @@ export class InteractionManager<
     this.map.on('pointermove', (event) => this.handlePointerMove(event));
     this.map.on('singleclick', (event) => this.handleSingleClick(event));
     this.map.on('dblclick', (event) => this.handleDoubleClick(event));
-    this.map.on('pointerdown', (event) => this.handlePointerDown(event));
+    (this.map.on as unknown as (type: string, listener: (event: MapBrowserEvent<UIEvent>) => void) => void)(
+      'pointerdown',
+      (event: MapBrowserEvent<UIEvent>) => this.handlePointerDown(event),
+    );
     this.map.on('pointerdrag', (event) => this.handlePointerDrag(event));
-    this.map.on('pointerup', (event) => this.handlePointerUp(event));
+    (this.map.on as unknown as (type: string, listener: (event: MapBrowserEvent<UIEvent>) => void) => void)(
+      'pointerup',
+      (event: MapBrowserEvent<UIEvent>) => this.handlePointerUp(event),
+    );
   }
 
   handlePointerDown(event: MapBrowserEvent<UIEvent>): void {
@@ -111,7 +132,7 @@ export class InteractionManager<
 
       const translate = interactions?.translate;
       if (translate && this.isEnabled(translate.enabled)) {
-        const candidates = this.hitTest({
+        const { items: candidates } = this.hitTest({
           layerId: entry.descriptor.id,
           layer: entry.layer,
           api: entry.api,
@@ -176,7 +197,7 @@ export class InteractionManager<
         continue;
       }
 
-      const candidates = this.hitTest({
+      const { items: candidates } = this.hitTest({
         layerId: entry.descriptor.id,
         layer: entry.layer,
         api: entry.api,
@@ -373,7 +394,7 @@ export class InteractionManager<
       if (!hover || !this.isEnabled(hover.enabled)) {
         continue;
       }
-      const items = this.hitTest({
+      const { items } = this.hitTest({
         layerId: entry.descriptor.id,
         layer: entry.layer,
         api: entry.api,
@@ -394,37 +415,44 @@ export class InteractionManager<
     for (const entry of layers) {
       const select = entry.descriptor.feature.interactions?.select;
       const click = entry.descriptor.feature.interactions?.click;
-      if (!select && !click) {
+      const selectEnabled = select && this.isEnabled(select.enabled);
+      const clickEnabled = click && this.isEnabled(click.enabled);
+      const clusteringEnabled = !!entry.descriptor.clustering && !!entry.api.isClusteringEnabled?.();
+      if (!selectEnabled && !clickEnabled && !clusteringEnabled) {
         continue;
       }
 
-      const selectEnabled = select && this.isEnabled(select.enabled);
-      const clickEnabled = click && this.isEnabled(click.enabled);
+      const tolerances = [
+        selectEnabled ? select?.hitTolerance : undefined,
+        clickEnabled ? click?.hitTolerance : undefined,
+      ].filter((value): value is number => value !== undefined);
+      const hitTolerance =
+        tolerances.length > 0 ? Math.max(...tolerances) : this.getHitTolerance(undefined);
+      const hitResult = this.hitTest({
+        layerId: entry.descriptor.id,
+        layer: entry.layer,
+        api: entry.api,
+        descriptor: entry.descriptor,
+        event,
+        hitTolerance,
+      });
+
+      if (clusteringEnabled && hitResult.cluster) {
+        const handled = this.handleClusterClick(entry, hitResult.cluster);
+        if (handled) {
+          if (this.shouldStopClusterPropagation()) {
+            break;
+          }
+          continue;
+        }
+      }
+
       if (!selectEnabled && !clickEnabled) {
         continue;
       }
 
-      const selectItems = selectEnabled
-        ? this.hitTest({
-            layerId: entry.descriptor.id,
-            layer: entry.layer,
-            api: entry.api,
-            descriptor: entry.descriptor,
-            event,
-            hitTolerance: this.getHitTolerance(select?.hitTolerance),
-          })
-        : [];
-
-      const clickItems = clickEnabled
-        ? this.hitTest({
-            layerId: entry.descriptor.id,
-            layer: entry.layer,
-            api: entry.api,
-            descriptor: entry.descriptor,
-            event,
-            hitTolerance: this.getHitTolerance(click?.hitTolerance),
-          })
-        : [];
+      const selectItems = selectEnabled ? hitResult.items : [];
+      const clickItems = clickEnabled ? hitResult.items : [];
 
       const selectHandled = selectEnabled
         ? this.processSelect(entry, select!, selectItems, event)
@@ -454,7 +482,7 @@ export class InteractionManager<
         continue;
       }
 
-      const items = this.hitTest({
+      const hitResult = this.hitTest({
         layerId: entry.descriptor.id,
         layer: entry.layer,
         api: entry.api,
@@ -462,6 +490,11 @@ export class InteractionManager<
         event,
         hitTolerance: this.getHitTolerance(doubleClick.hitTolerance),
       });
+
+      if (entry.descriptor.clustering && entry.api.isClusteringEnabled?.() && hitResult.cluster) {
+        continue;
+      }
+      const { items } = hitResult;
 
       const handled = this.processDoubleClick(entry, doubleClick, items, event);
       if (handled && this.shouldStopPropagation(doubleClick)) {
@@ -597,7 +630,11 @@ export class InteractionManager<
     if (!source) {
       return null;
     }
-    const feature = source.getFeatureById(targetKey);
+    const resolvedSource = source instanceof ClusterSource ? source.getSource() : source;
+    if (!resolvedSource) {
+      return null;
+    }
+    const feature = resolvedSource.getFeatureById(targetKey);
     if (!(feature instanceof Feature)) {
       return null;
     }
@@ -640,10 +677,31 @@ export class InteractionManager<
   private createDefaultHitTest(): HitTestFn {
     return ({ layer, api, event, hitTolerance }) => {
       const items: Array<HitItem<any, any>> = [];
+      let clusterHit: ClusterHit | undefined;
       this.map.forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
           if (!(feature instanceof Feature)) {
+            return;
+          }
+          const clusterFeatures = getClusterFeatures(feature as Feature<Geometry>);
+          if (clusterFeatures) {
+            if (clusterFeatures.length > 1) {
+              if (!clusterHit) {
+                clusterHit = {
+                  feature: feature as Feature<Geometry>,
+                  features: clusterFeatures,
+                  size: clusterFeatures.length,
+                };
+              }
+              return;
+            }
+            const singleFeature = clusterFeatures[0];
+            const singleModel = api.getModelByFeature(singleFeature as Feature<Geometry>);
+            if (!singleModel) {
+              return;
+            }
+            items.push({ model: singleModel, feature: singleFeature });
             return;
           }
           const model = api.getModelByFeature(feature as Feature<Geometry>);
@@ -657,7 +715,7 @@ export class InteractionManager<
           hitTolerance,
         },
       );
-      return items;
+      return { items, cluster: clusterHit };
     };
   }
 
@@ -836,5 +894,74 @@ export class InteractionManager<
 
   private shouldContinuePropagation(base: InteractionBase): boolean {
     return base.propagation === 'continue';
+  }
+
+  private handleClusterClick(entry: LayerEntry, clusterHit: ClusterHit): boolean {
+    const clustering = entry.descriptor.clustering;
+    if (!clustering) {
+      return false;
+    }
+
+    const models = clusterHit.features
+      .map((clusterFeature) =>
+        entry.api.getModelByFeature(clusterFeature as Feature<Geometry>),
+      )
+      .filter((model): model is any => model !== undefined);
+    let handled = false;
+
+    if (clustering.expandOnClick) {
+      this.expandCluster(clusterHit, clustering.expandOnClick);
+      clustering.expandOnClick.onExpanded?.({ models, ctx: this.ctx });
+      handled = true;
+    }
+
+    if (clustering.popup && this.isEnabled(clustering.popup.enabled)) {
+      clustering.popup.item({ models, size: clusterHit.size, ctx: this.ctx });
+      handled = true;
+    }
+
+    return handled;
+  }
+
+  private expandCluster(
+    clusterHit: ClusterHit,
+    expand: NonNullable<NonNullable<LayerEntry['descriptor']['clustering']>['expandOnClick']>,
+  ): void {
+    const view = this.map.getView();
+    const duration = expand.durationMs;
+    if (expand.mode === 'zoomIn') {
+      const currentZoom = view.getZoom() ?? 0;
+      const delta = expand.zoomDelta ?? 1;
+      const targetZoom = currentZoom + delta;
+      const nextZoom =
+        expand.maxZoom !== undefined ? Math.min(expand.maxZoom, targetZoom) : targetZoom;
+      view.animate({ zoom: nextZoom, duration });
+      return;
+    }
+
+    const extent = createEmpty();
+    clusterHit.features.forEach((feature) => {
+      const geometry = feature.getGeometry();
+      if (geometry) {
+        extend(extent, geometry.getExtent());
+      }
+    });
+    if (isEmpty(extent)) {
+      return;
+    }
+    const padding = Array.isArray(expand.padding)
+      ? expand.padding
+      : expand.padding !== undefined
+        ? [expand.padding, expand.padding, expand.padding, expand.padding]
+        : undefined;
+    view.fit(extent, {
+      padding,
+      duration,
+      maxZoom: expand.maxZoom,
+    });
+  }
+
+  private shouldStopClusterPropagation(): boolean {
+    return true;
   }
 }
