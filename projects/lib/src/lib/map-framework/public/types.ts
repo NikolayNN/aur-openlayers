@@ -95,7 +95,11 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * - after update, framework guarantees:
    * syncFeatureFromModel(next) + (batched) invalidate()
    */
-  mutate: (id: string | number, update: (prev: M) => M) => void;
+  mutate: (
+    id: string | number,
+    update: (prev: M) => M,
+    reason?: ModelChangeReason,
+  ) => void;
 
   /** bulk mutation (optional) */
   mutateMany?: (ids: Array<string | number>, update: (prev: M) => M) => void;
@@ -345,6 +349,7 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
 
     /** Translate = drag&drop of entire feature */
     translate?: InteractionBase & {
+      hitTolerance?: number;
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;

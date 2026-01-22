@@ -104,7 +104,11 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     return this.registry.getModelByFeature(feature);
   }
 
-  mutate(id: string | number, update: (prev: M) => M): void {
+  mutate(
+    id: string | number,
+    update: (prev: M) => M,
+    reason: ModelChange<M>['reason'] = 'mutate',
+  ): void {
     const prev = this.registry.getModel(id);
     if (!prev) {
       return;
@@ -116,7 +120,7 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     this.registry.updateModel(id, next);
     this.syncFeatureFromModel(next);
     this.scheduleInvalidate();
-    this.emitModelChanges([{ prev, next, reason: 'mutate' }]);
+    this.emitModelChanges([{ prev, next, reason }]);
   }
 
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {

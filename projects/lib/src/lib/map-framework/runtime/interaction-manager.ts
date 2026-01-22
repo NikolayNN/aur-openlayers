@@ -3,6 +3,8 @@ import type Geometry from 'ol/geom/Geometry';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type OlMap from 'ol/Map';
 import type VectorLayer from 'ol/layer/Vector';
+import Collection from 'ol/Collection';
+import type { TranslateEvent } from 'ol/interaction/Translate';
 
 import type {
   FeatureState,
@@ -21,6 +23,20 @@ type LayerEntry = {
   layer: VectorLayer;
   api: VectorLayerApi<any, any>;
   index: number;
+};
+
+type ActiveTranslate = {
+  targetKey: string | number;
+  startCoordinate: [number, number];
+  lastCoordinate: [number, number];
+  lastItem?: HitItem<any, any>;
+  moveThrottleMs: number;
+  translate: NonNullable<
+    NonNullable<LayerEntry['descriptor']['feature']['interactions']>['translate']
+  >;
+  pendingEvent?: MapBrowserEvent<UIEvent>;
+  throttleTimer?: ReturnType<typeof setTimeout>;
+  lastHandled?: boolean;
 };
 
 export type HitTestArgs = {
@@ -56,6 +72,7 @@ export class InteractionManager<
   private readonly hitTest: HitTestFn;
   private readonly hoverItems = new Map<string, Map<string | number, HitItem<any, any>>>();
   private readonly selectedItems = new Map<string, Map<string | number, HitItem<any, any>>>();
+  private readonly activeTranslates = new Map<string, ActiveTranslate>();
 
   constructor(options: InteractionManagerOptions<Layers>) {
     this.ctx = options.ctx;
@@ -68,6 +85,145 @@ export class InteractionManager<
     this.map.on('pointermove', (event) => this.handlePointerMove(event));
     this.map.on('singleclick', (event) => this.handleSingleClick(event));
     this.map.on('dblclick', (event) => this.handleDoubleClick(event));
+    this.map.on('pointerdown', (event) => this.handlePointerDown(event));
+    this.map.on('pointerdrag', (event) => this.handlePointerDrag(event));
+    this.map.on('pointerup', (event) => this.handlePointerUp(event));
+  }
+
+  handlePointerDown(event: MapBrowserEvent<UIEvent>): void {
+    const layers = this.getOrderedLayers();
+    for (const entry of layers) {
+      const translate = entry.descriptor.feature.interactions?.translate;
+      if (!translate || !this.isEnabled(translate.enabled)) {
+        continue;
+      }
+      const candidates = this.hitTest({
+        layerId: entry.descriptor.id,
+        layer: entry.layer,
+        api: entry.api,
+        descriptor: entry.descriptor,
+        event,
+        hitTolerance: this.getHitTolerance(translate.hitTolerance),
+      });
+      if (candidates.length === 0) {
+        continue;
+      }
+
+      const translateEvent = this.createTranslateEvent(
+        event,
+        event.coordinate as [number, number],
+        'translatestart',
+        candidates,
+      );
+
+      let target: HitItem<any, any> | null | undefined;
+      if (translate.pickTarget) {
+        target = translate.pickTarget({ candidates, ctx: this.ctx, event: translateEvent });
+        if (!target) {
+          continue;
+        }
+      } else {
+        target = candidates[0];
+      }
+
+      const targetKey = entry.descriptor.feature.id(target.model);
+      const resolved = this.resolveTarget(entry, targetKey);
+      if (!resolved) {
+        continue;
+      }
+
+      const active: ActiveTranslate = {
+        targetKey,
+        startCoordinate: event.coordinate as [number, number],
+        lastCoordinate: event.coordinate as [number, number],
+        lastItem: resolved,
+        moveThrottleMs: translate.moveThrottleMs ?? 0,
+        translate,
+      };
+      this.activeTranslates.set(entry.descriptor.id, active);
+
+      if (translate.state) {
+        this.applyState([resolved], translate.state, true);
+      }
+
+      const handled = translate.onStart
+        ? this.isHandled(translate.onStart({ item: resolved, ctx: this.ctx, event: translateEvent }))
+        : false;
+      active.lastHandled = handled;
+
+      if (handled && this.shouldStopPropagation(translate)) {
+        break;
+      }
+    }
+  }
+
+  handlePointerDrag(event: MapBrowserEvent<UIEvent>): void {
+    if (this.activeTranslates.size === 0) {
+      return;
+    }
+    for (const entry of this.getOrderedLayers()) {
+      const active = this.activeTranslates.get(entry.descriptor.id);
+      if (!active) {
+        continue;
+      }
+      const translate = active.translate;
+      const execute = () => this.applyTranslateMove(entry, active, event);
+
+      if (active.moveThrottleMs > 0) {
+        if (!active.throttleTimer) {
+          execute();
+          active.throttleTimer = setTimeout(() => {
+            active.throttleTimer = undefined;
+            if (active.pendingEvent) {
+              const pending = active.pendingEvent;
+              active.pendingEvent = undefined;
+              this.applyTranslateMove(entry, active, pending);
+            }
+          }, active.moveThrottleMs);
+        } else {
+          active.pendingEvent = event;
+        }
+      } else {
+        execute();
+      }
+
+      if (active.lastHandled && this.shouldStopPropagation(translate)) {
+        break;
+      }
+    }
+  }
+
+  handlePointerUp(event: MapBrowserEvent<UIEvent>): void {
+    if (this.activeTranslates.size === 0) {
+      return;
+    }
+    for (const entry of this.getOrderedLayers()) {
+      const active = this.activeTranslates.get(entry.descriptor.id);
+      if (!active) {
+        continue;
+      }
+      const translate = active.translate;
+      const resolved = this.resolveTarget(entry, active.targetKey);
+      if (resolved && translate.onEnd) {
+        const translateEvent = this.createTranslateEvent(
+          event,
+          active.startCoordinate,
+          'translateend',
+          [resolved],
+        );
+        active.lastHandled = this.isHandled(
+          translate.onEnd({ item: resolved, ctx: this.ctx, event: translateEvent }),
+        );
+      } else {
+        active.lastHandled = false;
+      }
+
+      this.finishTranslate(entry, active, resolved);
+
+      if (active.lastHandled && this.shouldStopPropagation(translate)) {
+        break;
+      }
+    }
   }
 
   handlePointerMove(event: MapBrowserEvent<UIEvent>): void {
@@ -172,6 +328,105 @@ export class InteractionManager<
         break;
       }
     }
+  }
+
+  private applyTranslateMove(
+    entry: LayerEntry,
+    active: ActiveTranslate,
+    event: MapBrowserEvent<UIEvent>,
+  ): void {
+    const translate = active.translate;
+    const resolved = this.resolveTarget(entry, active.targetKey);
+    if (!resolved) {
+      this.finishTranslate(entry, active, active.lastItem);
+      return;
+    }
+
+    const nextCoordinate = event.coordinate as [number, number];
+    const delta = [
+      nextCoordinate[0] - active.lastCoordinate[0],
+      nextCoordinate[1] - active.lastCoordinate[1],
+    ];
+    active.lastCoordinate = nextCoordinate;
+    active.lastItem = resolved;
+
+    const geometry = resolved.feature.getGeometry();
+    if (!geometry) {
+      return;
+    }
+    const translated = geometry.clone();
+    translated.translate(delta[0], delta[1]);
+
+    entry.api.mutate(
+      active.targetKey,
+      (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, translated),
+      'translate',
+    );
+
+    if (translate.onChange) {
+      const translateEvent = this.createTranslateEvent(
+        event,
+        active.startCoordinate,
+        'translating',
+        [resolved],
+      );
+      active.lastHandled = this.isHandled(
+        translate.onChange({ item: resolved, ctx: this.ctx, event: translateEvent }),
+      );
+    } else {
+      active.lastHandled = false;
+    }
+  }
+
+  private finishTranslate(
+    entry: LayerEntry,
+    active: ActiveTranslate,
+    item?: HitItem<any, any> | null,
+  ): void {
+    const finalItem = item ?? active.lastItem;
+    if (active.throttleTimer) {
+      clearTimeout(active.throttleTimer);
+      active.throttleTimer = undefined;
+      active.pendingEvent = undefined;
+    }
+
+    if (active.translate.state && finalItem) {
+      this.applyState([finalItem], active.translate.state, false);
+    }
+
+    this.activeTranslates.delete(entry.descriptor.id);
+  }
+
+  private resolveTarget(entry: LayerEntry, targetKey: string | number): HitItem<any, any> | null {
+    const source = entry.layer.getSource();
+    if (!source) {
+      return null;
+    }
+    const feature = source.getFeatureById(targetKey);
+    if (!(feature instanceof Feature)) {
+      return null;
+    }
+    const model = entry.api.getModelByFeature(feature as Feature<Geometry>);
+    if (!model) {
+      return null;
+    }
+    return { model, feature };
+  }
+
+  private createTranslateEvent(
+    event: MapBrowserEvent<UIEvent>,
+    startCoordinate: [number, number],
+    type: 'translatestart' | 'translating' | 'translateend',
+    items: Array<HitItem<any, any>>,
+  ): TranslateEvent {
+    const features = new Collection(items.map((item) => item.feature));
+    return {
+      type,
+      features,
+      coordinate: event.coordinate as [number, number],
+      startCoordinate,
+      mapBrowserEvent: event,
+    } as unknown as TranslateEvent;
   }
 
   private createDefaultHitTest(): HitTestFn {
