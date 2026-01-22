@@ -8,6 +8,7 @@ import type {
   VectorLayerDescriptor,
 } from '../public/types';
 import { createMapContext } from './map-context';
+import { InteractionManager } from './interaction-manager';
 import { PlainVectorLayer } from './plain-layer';
 
 const createInvalidateScheduler = (layer: VectorLayer<VectorSource<any>>): (() => void) => {
@@ -27,6 +28,7 @@ const createInvalidateScheduler = (layer: VectorLayer<VectorSource<any>>): (() =
 export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any, any, any>[]> {
   private readonly layers: Record<string, VectorLayer<VectorSource<any>>> = {};
   private readonly apis: Record<string, VectorLayerApi<any, any>> = {};
+  private readonly interactions: InteractionManager<Layers>;
 
   private constructor(private readonly map: OlMap, schema: MapSchema<Layers>) {
     const ctx = createMapContext(this.map, this.apis);
@@ -56,6 +58,14 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
       this.layers[descriptor.id] = layer;
       this.apis[descriptor.id] = api;
       this.map.addLayer(layer);
+    });
+
+    this.interactions = new InteractionManager({
+      ctx,
+      map: this.map,
+      schema,
+      layers: this.layers,
+      apis: this.apis,
     });
   }
 
