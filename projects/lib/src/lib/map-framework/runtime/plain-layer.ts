@@ -43,7 +43,7 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
       createStyleFunction({
         descriptor: this.descriptor,
         ctx: this.ctx,
-        registryGetModel: (feature) => this.registry.getModelByFeature(feature),
+        registryGetModel: (feature) => this.registry.getModelByFeature(feature as Feature<G>),
         map: this.ctx.map,
       }),
     );

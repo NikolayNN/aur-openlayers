@@ -54,7 +54,7 @@ describe('createStyleFunction', () => {
     const styleFn = createStyleFunction({
       descriptor,
       ctx: createCtx(),
-      registryGetModel: (f) => registry.getModelByFeature(f),
+      registryGetModel: (f) => registry.getModelByFeature(f as Feature<Point>),
     });
 
     styleFn(feature, 1);
@@ -87,7 +87,7 @@ describe('createStyleFunction', () => {
     const styleFn = createStyleFunction({
       descriptor,
       ctx: createCtx(),
-      registryGetModel: (f) => registry.getModelByFeature(f),
+      registryGetModel: (f) => registry.getModelByFeature(f as Feature<Point>),
     });
 
     styleFn(feature, 1);

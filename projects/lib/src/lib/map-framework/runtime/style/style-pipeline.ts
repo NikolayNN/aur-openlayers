@@ -1,12 +1,13 @@
-import type Feature from 'ol/Feature';
+import Feature from 'ol/Feature';
 import type Geometry from 'ol/geom/Geometry';
 import type OlMap from 'ol/Map';
-import type Style from 'ol/style/Style';
+import type { StyleFunction } from 'ol/style/Style';
 
 import type {
   FeatureDescriptor,
   FeatureStyleState,
   MapContext,
+  MaybeFn,
   Patch,
   StyleView,
 } from '../../public/types';
@@ -16,11 +17,11 @@ import { StyleCache } from './style-cache';
 export type StylePipelineOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: FeatureDescriptor<M, G, OPTS>;
   ctx: MapContext;
-  registryGetModel: (feature: Feature<G>) => M | undefined;
+  registryGetModel: (feature: Feature<Geometry>) => M | undefined;
   map?: OlMap;
 };
 
-const resolveMaybeFn = <T, A extends any[]>(value: T | ((...args: A) => T), args: A): T => {
+const resolveMaybeFn = <T, A extends any[]>(value: MaybeFn<T, A>, args: A): T => {
   if (typeof value === 'function') {
     return (value as (...fnArgs: A) => T)(...args);
   }
@@ -47,15 +48,18 @@ const orderStates = (
 
 export const createStyleFunction = <M, G extends Geometry, OPTS extends object>(
   options: StylePipelineOptions<M, G, OPTS>,
-): ((feature: Feature<G>, resolution: number) => Style | Style[] | undefined) => {
+): StyleFunction => {
   const { descriptor, registryGetModel, map } = options;
   const { style } = descriptor;
   const cache = new StyleCache();
 
   return (feature, resolution) => {
+    if (!(feature instanceof Feature)) {
+      return [];
+    }
     const model = registryGetModel(feature);
     if (!model) {
-      return undefined;
+      return [];
     }
     const view: StyleView = {
       resolution,
