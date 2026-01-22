@@ -1273,4 +1273,664 @@ describe('InteractionManager', () => {
       expect(calls).toEqual(['a', 'b']);
     });
   });
+
+  describe('modify interaction', () => {
+    const geometry = {
+      fromModel: (model: Model) => new Point(model.coords ?? [0, 0]),
+      applyGeometryToModel: (prev: Model, nextGeometry: Point) => ({
+        ...prev,
+        coords: nextGeometry.getCoordinates() as [number, number],
+      }),
+    };
+
+    it('selects target via pickTarget and defaults to first candidate', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      const itemB = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+      layer.source.addFeature(itemB.feature);
+
+      const calls: string[] = [];
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  pickTarget: ({ candidates }) => candidates[1],
+                  onStart: ({ item }) => {
+                    calls.push(item.model.id);
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA, itemB],
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(calls).toEqual(['b']);
+
+      calls.length = 0;
+      const schemaWithoutPick: MapSchema<
+        readonly VectorLayerDescriptor<any, any, any, any>[]
+      > = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  onStart: ({ item }) => {
+                    calls.push(item.model.id);
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const managerWithoutPick = buildManager(
+        map,
+        schemaWithoutPick,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemB, itemA],
+      );
+
+      managerWithoutPick.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(calls).toEqual(['b']);
+    });
+
+    it('does not start when pickTarget returns null', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let mutateCalls = 0;
+      const api = createApi({
+        mutate: (_id, _update, _reason) => {
+          mutateCalls += 1;
+        },
+      });
+
+      let startCalls = 0;
+      let changeCalls = 0;
+      let endCalls = 0;
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  state: 'MODIFY',
+                  pickTarget: () => null,
+                  onStart: () => {
+                    startCalls += 1;
+                    return true;
+                  },
+                  onChange: () => {
+                    changeCalls += 1;
+                    return true;
+                  },
+                  onEnd: () => {
+                    endCalls += 1;
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [1, 1]));
+
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+      expect(mutateCalls).toBe(0);
+      expect(startCalls).toBe(0);
+      expect(changeCalls).toBe(0);
+      expect(endCalls).toBe(0);
+    });
+
+    it('uses hitTolerance override for modify', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        options: {
+          hitTolerance: 0,
+        },
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  hitTolerance: 10,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const hitTolerances: number[] = [];
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        ({ hitTolerance }) => {
+          hitTolerances.push(hitTolerance);
+          return [itemA];
+        },
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+
+      expect(hitTolerances).toEqual([10]);
+    });
+
+    it('resolves targets by id and aborts when missing', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      const updates: number[] = [];
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  state: 'MODIFY',
+                  onChange: ({ item }) => {
+                    updates.push(item.model.value);
+                  },
+                  onEnd: () => {
+                    updates.push(-1);
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      const updatedModel: Model = { id: 'a', value: 42, coords: [0, 0] };
+      itemA.feature.set('model', updatedModel);
+      itemA.feature.setGeometry(new Point(updatedModel.coords ?? [0, 0]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      expect(updates).toEqual([42]);
+
+      layer.source.removeFeature(itemA.feature);
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [2, 2]));
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [2, 2]));
+
+      expect(updates).toEqual([42]);
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+    });
+
+    it('mutates with modify reason and notifies changes', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let model = itemA.model;
+      const handlers = new Set<(changes: ModelChange<Model>[]) => void>();
+      const changes: ModelChange<Model>[] = [];
+
+      const api = createApi({
+        mutate: (_id, update, reason: ModelChangeReason = 'mutate') => {
+          const prev = model;
+          const next = update(prev);
+          if (next === prev) {
+            return;
+          }
+          model = next;
+          itemA.feature.set('model', next);
+          itemA.feature.setGeometry(new Point(next.coords ?? [0, 0]));
+          const batch: ModelChange<Model>[] = [{ prev, next, reason }];
+          changes.push(...batch);
+          handlers.forEach((handler) => handler(batch));
+        },
+        onModelsChanged: (cb) => {
+          handlers.add(cb);
+          return () => handlers.delete(cb);
+        },
+      });
+
+      const onModelsChanged: ModelChange<Model>[] = [];
+      api.onModelsChanged?.((batch) => onModelsChanged.push(...batch));
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  onStart: () => undefined,
+                  onChange: () => undefined,
+                  onEnd: () => undefined,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      itemA.feature.setGeometry(new Point([5, 5]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [5, 5]));
+
+      expect(model.coords).toEqual([5, 5]);
+      expect(changes).toEqual([
+        {
+          prev: { id: 'a', value: 1, coords: [0, 0] },
+          next: { id: 'a', value: 1, coords: [5, 5] },
+          reason: 'modify',
+        },
+      ]);
+      expect(onModelsChanged).toEqual(changes);
+    });
+
+    it('skips change emissions when model update is a no-op', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let model = itemA.model;
+      const changes: ModelChange<Model>[] = [];
+      const api = createApi({
+        mutate: (_id, update, reason: ModelChangeReason = 'mutate') => {
+          const prev = model;
+          const next = update(prev);
+          if (next === prev) {
+            return;
+          }
+          model = next;
+          const batch: ModelChange<Model>[] = [{ prev, next, reason }];
+          changes.push(...batch);
+        },
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {
+                fromModel: (model: Model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev: Model) => prev,
+              },
+              style: {} as never,
+              interactions: {
+                modify: {},
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      itemA.feature.setGeometry(new Point([9, 9]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [9, 9]));
+
+      expect(model.coords).toEqual([0, 0]);
+      expect(changes).toEqual([]);
+    });
+
+    it('throttles modify moves and flushes trailing update', () => {
+      jasmine.clock().install();
+
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let model = itemA.model;
+      let mutateCalls = 0;
+      const api = createApi({
+        mutate: (_id, update, _reason) => {
+          mutateCalls += 1;
+          model = update(model);
+          itemA.feature.set('model', model);
+          itemA.feature.setGeometry(new Point(model.coords ?? [0, 0]));
+        },
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  moveThrottleMs: 100,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      itemA.feature.setGeometry(new Point([1, 1]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      itemA.feature.setGeometry(new Point([2, 2]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [2, 2]));
+      itemA.feature.setGeometry(new Point([3, 3]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [3, 3]));
+
+      expect(mutateCalls).toBe(1);
+      jasmine.clock().tick(100);
+      expect(mutateCalls).toBe(2);
+      expect(model.coords).toEqual([3, 3]);
+
+      jasmine.clock().uninstall();
+    });
+
+    it('flushes pending modify update on pointerup', () => {
+      jasmine.clock().install();
+
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let model = itemA.model;
+      let mutateCalls = 0;
+      const api = createApi({
+        mutate: (_id, update, _reason) => {
+          mutateCalls += 1;
+          model = update(model);
+          itemA.feature.set('model', model);
+          itemA.feature.setGeometry(new Point(model.coords ?? [0, 0]));
+        },
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  moveThrottleMs: 100,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      itemA.feature.setGeometry(new Point([1, 1]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      itemA.feature.setGeometry(new Point([2, 2]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [2, 2]));
+
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [2, 2]));
+
+      expect(mutateCalls).toBe(2);
+      expect(model.coords).toEqual([2, 2]);
+
+      jasmine.clock().tick(100);
+      expect(mutateCalls).toBe(2);
+
+      jasmine.clock().uninstall();
+    });
+
+    it('applies and clears state during modify activity', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  state: 'MODIFY',
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => [itemA],
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual(['MODIFY']);
+
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [0, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual(['MODIFY']);
+      layer.source.removeFeature(itemA.feature);
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+    });
+
+    it('respects propagation when modify starts', () => {
+      const map = createMap();
+      const layerA = createLayer('a', 2);
+      const layerB = createLayer('b', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      const itemB = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
+      layerA.source.addFeature(itemA.feature);
+      layerB.source.addFeature(itemB.feature);
+
+      const calls: string[] = [];
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  onStart: () => {
+                    calls.push('a');
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: 'b',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  onStart: () => {
+                    calls.push('b');
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [
+          { id: 'a', layer: layerA.layer },
+          { id: 'b', layer: layerB.layer },
+        ],
+        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(calls).toEqual(['a']);
+
+      calls.length = 0;
+      const schemaContinue: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  propagation: 'continue',
+                  onStart: () => {
+                    calls.push('a');
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: 'b',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {
+                  onStart: () => {
+                    calls.push('b');
+                    return true;
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const managerContinue = buildManager(
+        map,
+        schemaContinue,
+        [
+          { id: 'a', layer: layerA.layer },
+          { id: 'b', layer: layerB.layer },
+        ],
+        ({ layerId }) => (layerId === 'a' ? [itemA] : [itemB]),
+      );
+
+      managerContinue.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(calls).toEqual(['a', 'b']);
+    });
+  });
 });

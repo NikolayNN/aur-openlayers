@@ -375,6 +375,7 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
 
     /** Modify = geometry editing (vertices/segments) */
     modify?: InteractionBase & {
+      hitTolerance?: number;
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;

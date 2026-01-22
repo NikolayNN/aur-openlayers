@@ -4,6 +4,7 @@ import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type OlMap from 'ol/Map';
 import type VectorLayer from 'ol/layer/Vector';
 import Collection from 'ol/Collection';
+import type { ModifyEvent } from 'ol/interaction/Modify';
 import type { TranslateEvent } from 'ol/interaction/Translate';
 
 import type {
@@ -33,6 +34,18 @@ type ActiveTranslate = {
   moveThrottleMs: number;
   translate: NonNullable<
     NonNullable<LayerEntry['descriptor']['feature']['interactions']>['translate']
+  >;
+  pendingEvent?: MapBrowserEvent<UIEvent>;
+  throttleTimer?: ReturnType<typeof setTimeout>;
+  lastHandled?: boolean;
+};
+
+type ActiveModify = {
+  targetKey: string | number;
+  lastItem?: HitItem<any, any>;
+  moveThrottleMs: number;
+  modify: NonNullable<
+    NonNullable<LayerEntry['descriptor']['feature']['interactions']>['modify']
   >;
   pendingEvent?: MapBrowserEvent<UIEvent>;
   throttleTimer?: ReturnType<typeof setTimeout>;
@@ -73,6 +86,7 @@ export class InteractionManager<
   private readonly hoverItems = new Map<string, Map<string | number, HitItem<any, any>>>();
   private readonly selectedItems = new Map<string, Map<string | number, HitItem<any, any>>>();
   private readonly activeTranslates = new Map<string, ActiveTranslate>();
+  private readonly activeModifies = new Map<string, ActiveModify>();
 
   constructor(options: InteractionManagerOptions<Layers>) {
     this.ctx = options.ctx;
@@ -93,32 +107,93 @@ export class InteractionManager<
   handlePointerDown(event: MapBrowserEvent<UIEvent>): void {
     const layers = this.getOrderedLayers();
     for (const entry of layers) {
-      const translate = entry.descriptor.feature.interactions?.translate;
-      if (!translate || !this.isEnabled(translate.enabled)) {
+      const interactions = entry.descriptor.feature.interactions;
+
+      const translate = interactions?.translate;
+      if (translate && this.isEnabled(translate.enabled)) {
+        const candidates = this.hitTest({
+          layerId: entry.descriptor.id,
+          layer: entry.layer,
+          api: entry.api,
+          descriptor: entry.descriptor,
+          event,
+          hitTolerance: this.getHitTolerance(translate.hitTolerance),
+        });
+        if (candidates.length > 0) {
+          const translateEvent = this.createTranslateEvent(
+            event,
+            event.coordinate as [number, number],
+            'translatestart',
+            candidates,
+          );
+
+          let target: HitItem<any, any> | null | undefined;
+          if (translate.pickTarget) {
+            target = translate.pickTarget({ candidates, ctx: this.ctx, event: translateEvent });
+          } else {
+            target = candidates[0];
+          }
+
+          if (target) {
+            const targetKey = entry.descriptor.feature.id(target.model);
+            const resolved = this.resolveTarget(entry, targetKey);
+            if (resolved) {
+              const active: ActiveTranslate = {
+                targetKey,
+                startCoordinate: event.coordinate as [number, number],
+                lastCoordinate: event.coordinate as [number, number],
+                lastItem: resolved,
+                moveThrottleMs: translate.moveThrottleMs ?? 0,
+                translate,
+              };
+              this.activeTranslates.set(entry.descriptor.id, active);
+
+              if (translate.state) {
+                this.applyState([resolved], translate.state, true);
+              }
+
+              const handled = translate.onStart
+                ? this.isHandled(
+                    translate.onStart({ item: resolved, ctx: this.ctx, event: translateEvent }),
+                  )
+                : false;
+              active.lastHandled = handled;
+
+              if (handled && this.shouldStopPropagation(translate)) {
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (this.activeTranslates.has(entry.descriptor.id)) {
         continue;
       }
+
+      const modify = interactions?.modify;
+      if (!modify || !this.isEnabled(modify.enabled)) {
+        continue;
+      }
+
       const candidates = this.hitTest({
         layerId: entry.descriptor.id,
         layer: entry.layer,
         api: entry.api,
         descriptor: entry.descriptor,
         event,
-        hitTolerance: this.getHitTolerance(translate.hitTolerance),
+        hitTolerance: this.getHitTolerance(modify.hitTolerance),
       });
+
       if (candidates.length === 0) {
         continue;
       }
 
-      const translateEvent = this.createTranslateEvent(
-        event,
-        event.coordinate as [number, number],
-        'translatestart',
-        candidates,
-      );
+      const modifyEvent = this.createModifyEvent(event, 'modifystart', candidates);
 
       let target: HitItem<any, any> | null | undefined;
-      if (translate.pickTarget) {
-        target = translate.pickTarget({ candidates, ctx: this.ctx, event: translateEvent });
+      if (modify.pickTarget) {
+        target = modify.pickTarget({ candidates, ctx: this.ctx, event: modifyEvent });
         if (!target) {
           continue;
         }
@@ -132,38 +207,64 @@ export class InteractionManager<
         continue;
       }
 
-      const active: ActiveTranslate = {
+      const active: ActiveModify = {
         targetKey,
-        startCoordinate: event.coordinate as [number, number],
-        lastCoordinate: event.coordinate as [number, number],
         lastItem: resolved,
-        moveThrottleMs: translate.moveThrottleMs ?? 0,
-        translate,
+        moveThrottleMs: modify.moveThrottleMs ?? 0,
+        modify,
       };
-      this.activeTranslates.set(entry.descriptor.id, active);
+      this.activeModifies.set(entry.descriptor.id, active);
 
-      if (translate.state) {
-        this.applyState([resolved], translate.state, true);
+      if (modify.state) {
+        this.applyState([resolved], modify.state, true);
       }
 
-      const handled = translate.onStart
-        ? this.isHandled(translate.onStart({ item: resolved, ctx: this.ctx, event: translateEvent }))
+      const handled = modify.onStart
+        ? this.isHandled(modify.onStart({ item: resolved, ctx: this.ctx, event: modifyEvent }))
         : false;
       active.lastHandled = handled;
 
-      if (handled && this.shouldStopPropagation(translate)) {
+      if (handled && this.shouldStopPropagation(modify)) {
         break;
       }
     }
   }
 
   handlePointerDrag(event: MapBrowserEvent<UIEvent>): void {
-    if (this.activeTranslates.size === 0) {
+    if (this.activeTranslates.size === 0 && this.activeModifies.size === 0) {
       return;
     }
     for (const entry of this.getOrderedLayers()) {
       const active = this.activeTranslates.get(entry.descriptor.id);
       if (!active) {
+        const activeModify = this.activeModifies.get(entry.descriptor.id);
+        if (!activeModify) {
+          continue;
+        }
+        const modify = activeModify.modify;
+        const execute = () => this.applyModifyChange(entry, activeModify, event);
+
+        if (activeModify.moveThrottleMs > 0) {
+          if (!activeModify.throttleTimer) {
+            execute();
+            activeModify.throttleTimer = setTimeout(() => {
+              activeModify.throttleTimer = undefined;
+              if (activeModify.pendingEvent) {
+                const pending = activeModify.pendingEvent;
+                activeModify.pendingEvent = undefined;
+                this.applyModifyChange(entry, activeModify, pending);
+              }
+            }, activeModify.moveThrottleMs);
+          } else {
+            activeModify.pendingEvent = event;
+          }
+        } else {
+          execute();
+        }
+
+        if (activeModify.lastHandled && this.shouldStopPropagation(modify)) {
+          break;
+        }
         continue;
       }
       const translate = active.translate;
@@ -194,33 +295,72 @@ export class InteractionManager<
   }
 
   handlePointerUp(event: MapBrowserEvent<UIEvent>): void {
-    if (this.activeTranslates.size === 0) {
+    if (this.activeTranslates.size === 0 && this.activeModifies.size === 0) {
       return;
     }
     for (const entry of this.getOrderedLayers()) {
       const active = this.activeTranslates.get(entry.descriptor.id);
-      if (!active) {
+      if (active) {
+        const translate = active.translate;
+        if (active.throttleTimer) {
+          clearTimeout(active.throttleTimer);
+          active.throttleTimer = undefined;
+        }
+        if (active.pendingEvent) {
+          const pending = active.pendingEvent;
+          active.pendingEvent = undefined;
+          this.applyTranslateMove(entry, active, pending);
+        }
+        const resolved = this.resolveTarget(entry, active.targetKey);
+        if (resolved && translate.onEnd) {
+          const translateEvent = this.createTranslateEvent(
+            event,
+            active.startCoordinate,
+            'translateend',
+            [resolved],
+          );
+          active.lastHandled = this.isHandled(
+            translate.onEnd({ item: resolved, ctx: this.ctx, event: translateEvent }),
+          );
+        } else {
+          active.lastHandled = false;
+        }
+
+        this.finishTranslate(entry, active, resolved);
+
+        if (active.lastHandled && this.shouldStopPropagation(translate)) {
+          break;
+        }
         continue;
       }
-      const translate = active.translate;
-      const resolved = this.resolveTarget(entry, active.targetKey);
-      if (resolved && translate.onEnd) {
-        const translateEvent = this.createTranslateEvent(
-          event,
-          active.startCoordinate,
-          'translateend',
-          [resolved],
-        );
-        active.lastHandled = this.isHandled(
-          translate.onEnd({ item: resolved, ctx: this.ctx, event: translateEvent }),
+
+      const activeModify = this.activeModifies.get(entry.descriptor.id);
+      if (!activeModify) {
+        continue;
+      }
+      const modify = activeModify.modify;
+      if (activeModify.throttleTimer) {
+        clearTimeout(activeModify.throttleTimer);
+        activeModify.throttleTimer = undefined;
+      }
+      if (activeModify.pendingEvent) {
+        const pending = activeModify.pendingEvent;
+        activeModify.pendingEvent = undefined;
+        this.applyModifyChange(entry, activeModify, pending);
+      }
+      const resolved = this.resolveTarget(entry, activeModify.targetKey);
+      if (resolved && modify.onEnd) {
+        const modifyEvent = this.createModifyEvent(event, 'modifyend', [resolved]);
+        activeModify.lastHandled = this.isHandled(
+          modify.onEnd({ item: resolved, ctx: this.ctx, event: modifyEvent }),
         );
       } else {
-        active.lastHandled = false;
+        activeModify.lastHandled = false;
       }
 
-      this.finishTranslate(entry, active, resolved);
+      this.finishModify(entry, activeModify, resolved);
 
-      if (active.lastHandled && this.shouldStopPropagation(translate)) {
+      if (activeModify.lastHandled && this.shouldStopPropagation(modify)) {
         break;
       }
     }
@@ -378,6 +518,42 @@ export class InteractionManager<
     }
   }
 
+  private applyModifyChange(
+    entry: LayerEntry,
+    active: ActiveModify,
+    event: MapBrowserEvent<UIEvent>,
+  ): void {
+    const modify = active.modify;
+    const resolved = this.resolveTarget(entry, active.targetKey);
+    if (!resolved) {
+      this.finishModify(entry, active, active.lastItem);
+      return;
+    }
+
+    active.lastItem = resolved;
+
+    const geometry = resolved.feature.getGeometry();
+    if (!geometry) {
+      return;
+    }
+
+    const nextGeometry = geometry.clone();
+    entry.api.mutate(
+      active.targetKey,
+      (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, nextGeometry),
+      'modify',
+    );
+
+    if (modify.onChange) {
+      const modifyEvent = this.createModifyEvent(event, 'modifying', [resolved]);
+      active.lastHandled = this.isHandled(
+        modify.onChange({ item: resolved, ctx: this.ctx, event: modifyEvent }),
+      );
+    } else {
+      active.lastHandled = false;
+    }
+  }
+
   private finishTranslate(
     entry: LayerEntry,
     active: ActiveTranslate,
@@ -395,6 +571,25 @@ export class InteractionManager<
     }
 
     this.activeTranslates.delete(entry.descriptor.id);
+  }
+
+  private finishModify(
+    entry: LayerEntry,
+    active: ActiveModify,
+    item?: HitItem<any, any> | null,
+  ): void {
+    const finalItem = item ?? active.lastItem;
+    if (active.throttleTimer) {
+      clearTimeout(active.throttleTimer);
+      active.throttleTimer = undefined;
+      active.pendingEvent = undefined;
+    }
+
+    if (active.modify.state && finalItem) {
+      this.applyState([finalItem], active.modify.state, false);
+    }
+
+    this.activeModifies.delete(entry.descriptor.id);
   }
 
   private resolveTarget(entry: LayerEntry, targetKey: string | number): HitItem<any, any> | null {
@@ -427,6 +622,19 @@ export class InteractionManager<
       startCoordinate,
       mapBrowserEvent: event,
     } as unknown as TranslateEvent;
+  }
+
+  private createModifyEvent(
+    event: MapBrowserEvent<UIEvent>,
+    type: 'modifystart' | 'modifying' | 'modifyend',
+    items: Array<HitItem<any, any>>,
+  ): ModifyEvent {
+    const features = new Collection(items.map((item) => item.feature));
+    return {
+      type,
+      features,
+      mapBrowserEvent: event,
+    } as unknown as ModifyEvent;
   }
 
   private createDefaultHitTest(): HitTestFn {
