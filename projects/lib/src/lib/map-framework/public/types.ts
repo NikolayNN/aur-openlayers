@@ -126,17 +126,33 @@ export type VectorLayerApi<M, G extends Geometry> = {
   onModelsChanged?: (cb: (changes: ModelChange<M>[]) => void) => Unsubscribe;
 };
 
+export type PopupItemSource = 'feature' | 'cluster' | 'interaction';
+
 export type PopupItem<M> = {
   model: M;
   content: string | HTMLElement;
   className?: string;
   offset?: number[];
+  dedupKey?: string | number;
+  priority?: number;
+  source?: PopupItemSource;
 };
+
+export interface PopupHostApi {
+  push: (items: PopupItem<any>[]) => void;
+  set: (items: PopupItem<any>[]) => void;
+  clear: () => void;
+  remove: (key: string | number) => void;
+  getItems: () => PopupItem<any>[];
+  mount: (target: HTMLElement | (() => HTMLElement)) => void;
+  dispose: () => void;
+}
 
 export type MapContext = {
   map: OlMap;
   /** access to layers by id (typed by schema in implementation) */
   layers: Record<string, VectorLayerApi<any, any>>;
+  popupHost?: PopupHostApi;
   /**
    * Batching: group multiple mutate/invalidate into one flush.
    * Example:
@@ -407,7 +423,12 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
    */
   popup?: {
     enabled?: Enabled;
-    item: (args: { model: M; ctx: MapContext }) => PopupItem<M>;
+    item: (args: {
+      model: M;
+      feature: Feature<G>;
+      ctx: MapContext;
+      event?: MapBrowserEvent<UIEvent>;
+    }) => PopupItem<M>;
   };
 }
 
@@ -434,7 +455,12 @@ export type LayerClustering<M> = {
    */
   popup?: {
     enabled?: Enabled;
-    item: (args: { models: M[]; size: number; ctx: MapContext }) => PopupItem<M>;
+    item: (args: {
+      models: M[];
+      size: number;
+      ctx: MapContext;
+      event?: MapBrowserEvent<UIEvent>;
+    }) => PopupItem<M>;
     /** limit specifically for cluster (overrides popupHost.maxItems) */
     maxItems?: number;
   };
@@ -493,12 +519,14 @@ export interface MapSchema<
      */
     popupHost?: {
       enabled?: Enabled;
+      autoMode?: 'off' | 'click' | 'hover';
       /** maximum items in list (protection against infinite list) */
       maxItems?: number;
       /** popup sorting (if needed) */
       sort?: (a: PopupItem<any>, b: PopupItem<any>) => number;
       /** where to render: container/portal */
       mount?: HTMLElement | (() => HTMLElement);
+      stack?: 'stop' | 'continue';
     };
   };
 }

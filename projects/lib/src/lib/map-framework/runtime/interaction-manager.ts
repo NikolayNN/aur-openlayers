@@ -17,6 +17,7 @@ import type {
   InteractionHandlerResult,
   MapContext,
   MapSchema,
+  PopupItem,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../public/types';
@@ -102,6 +103,7 @@ export class InteractionManager<
   private readonly selectedItems = new Map<string, Map<string | number, HitItem<any, any>>>();
   private readonly activeTranslates = new Map<string, ActiveTranslate>();
   private readonly activeModifies = new Map<string, ActiveModify>();
+  private readonly popupStack: 'stop' | 'continue';
 
   constructor(options: InteractionManagerOptions<Layers>) {
     this.ctx = options.ctx;
@@ -110,6 +112,7 @@ export class InteractionManager<
     this.layers = options.layers;
     this.apis = options.apis;
     this.hitTest = options.hitTest ?? this.createDefaultHitTest();
+    this.popupStack = this.schema.options?.popupHost?.stack ?? 'stop';
 
     this.map.on('pointermove', (event) => this.handlePointerMove(event));
     this.map.on('singleclick', (event) => this.handleSingleClick(event));
@@ -388,10 +391,16 @@ export class InteractionManager<
   }
 
   handlePointerMove(event: MapBrowserEvent<UIEvent>): void {
+    const popupHost = this.ctx.popupHost;
+    const autoMode = this.schema.options?.popupHost?.autoMode ?? 'off';
+    const autoHover = autoMode === 'hover';
+    const popupItems: Array<PopupItem<any>> = [];
+    let popupStopped = false;
     const layers = this.getOrderedLayers();
     for (const entry of layers) {
       const hover = entry.descriptor.feature.interactions?.hover;
-      if (!hover || !this.isEnabled(hover.enabled)) {
+      const hoverEnabled = !!hover && this.isEnabled(hover.enabled);
+      if (!hoverEnabled && !autoHover) {
         continue;
       }
       const { items } = this.hitTest({
@@ -400,17 +409,37 @@ export class InteractionManager<
         api: entry.api,
         descriptor: entry.descriptor,
         event,
-        hitTolerance: this.getHitTolerance(hover.hitTolerance),
+        hitTolerance: this.getHitTolerance(hoverEnabled ? hover!.hitTolerance : undefined),
       });
 
-      const handled = this.processHover(entry, hover, items, event);
-      if (handled && this.shouldStopPropagation(hover)) {
-        break;
+      if (hoverEnabled) {
+        const handled = this.processHover(entry, hover!, items, event);
+        if (handled && this.shouldStopPropagation(hover!)) {
+          break;
+        }
       }
+
+      if (autoHover && popupHost && !popupStopped) {
+        const collected = this.collectFeaturePopupItems(entry, items, event);
+        if (collected.length > 0) {
+          popupItems.push(...collected);
+          if (this.popupStack === 'stop') {
+            popupStopped = true;
+          }
+        }
+      }
+    }
+    if (autoHover && popupHost) {
+      popupHost.set(popupItems);
     }
   }
 
   handleSingleClick(event: MapBrowserEvent<UIEvent>): void {
+    const popupHost = this.ctx.popupHost;
+    const autoMode = this.schema.options?.popupHost?.autoMode ?? 'off';
+    const autoClick = autoMode === 'click';
+    const popupItems: Array<PopupItem<any>> = [];
+    let popupStopped = false;
     const layers = this.getOrderedLayers();
     for (const entry of layers) {
       const select = entry.descriptor.feature.interactions?.select;
@@ -418,7 +447,7 @@ export class InteractionManager<
       const selectEnabled = select && this.isEnabled(select.enabled);
       const clickEnabled = click && this.isEnabled(click.enabled);
       const clusteringEnabled = !!entry.descriptor.clustering && !!entry.api.isClusteringEnabled?.();
-      if (!selectEnabled && !clickEnabled && !clusteringEnabled) {
+      if (!selectEnabled && !clickEnabled && !clusteringEnabled && !autoClick) {
         continue;
       }
 
@@ -438,7 +467,16 @@ export class InteractionManager<
       });
 
       if (clusteringEnabled && hitResult.cluster) {
-        const handled = this.handleClusterClick(entry, hitResult.cluster);
+        if (autoClick && popupHost && !popupStopped) {
+          const collected = this.collectPopupItems(entry, hitResult, event);
+          if (collected.length > 0) {
+            popupItems.push(...collected);
+            if (this.popupStack === 'stop') {
+              popupStopped = true;
+            }
+          }
+        }
+        const handled = this.handleClusterClick(entry, hitResult.cluster, event, !autoClick);
         if (handled) {
           if (this.shouldStopClusterPropagation()) {
             break;
@@ -447,30 +485,41 @@ export class InteractionManager<
         }
       }
 
-      if (!selectEnabled && !clickEnabled) {
-        continue;
-      }
+      if (selectEnabled || clickEnabled) {
+        const selectItems = selectEnabled ? hitResult.items : [];
+        const clickItems = clickEnabled ? hitResult.items : [];
 
-      const selectItems = selectEnabled ? hitResult.items : [];
-      const clickItems = clickEnabled ? hitResult.items : [];
+        const selectHandled = selectEnabled
+          ? this.processSelect(entry, select!, selectItems, event)
+          : false;
+        const selectStops = selectHandled && this.shouldStopPropagation(select!);
+        const allowClick =
+          !selectHandled || (selectEnabled && this.shouldContinuePropagation(select!));
 
-      const selectHandled = selectEnabled
-        ? this.processSelect(entry, select!, selectItems, event)
-        : false;
-      const selectStops = selectHandled && this.shouldStopPropagation(select!);
-      const allowClick =
-        !selectHandled || (selectEnabled && this.shouldContinuePropagation(select!));
+        if (clickEnabled && allowClick) {
+          const clickHandled = this.processClick(entry, click!, clickItems, event);
+          if (clickHandled && this.shouldStopPropagation(click!)) {
+            break;
+          }
+        }
 
-      if (clickEnabled && allowClick) {
-        const clickHandled = this.processClick(entry, click!, clickItems, event);
-        if (clickHandled && this.shouldStopPropagation(click!)) {
+        if (selectStops) {
           break;
         }
       }
 
-      if (selectStops) {
-        break;
+      if (autoClick && popupHost && !popupStopped && !(clusteringEnabled && hitResult.cluster)) {
+        const collected = this.collectPopupItems(entry, hitResult, event);
+        if (collected.length > 0) {
+          popupItems.push(...collected);
+          if (this.popupStack === 'stop') {
+            popupStopped = true;
+          }
+        }
       }
+    }
+    if (autoClick && popupHost) {
+      popupHost.set(popupItems);
     }
   }
 
@@ -719,6 +768,67 @@ export class InteractionManager<
     };
   }
 
+  private collectFeaturePopupItems(
+    entry: LayerEntry,
+    items: Array<HitItem<any, any>>,
+    event: MapBrowserEvent<UIEvent>,
+  ): Array<PopupItem<any>> {
+    const popup = entry.descriptor.feature.popup;
+    if (!popup || !this.isEnabled(popup.enabled)) {
+      return [];
+    }
+    return items.map((item) => {
+      const popupItem = popup.item({
+        model: item.model,
+        feature: item.feature,
+        ctx: this.ctx,
+        event,
+      });
+      return {
+        ...popupItem,
+        source: popupItem.source ?? 'feature',
+        dedupKey: popupItem.dedupKey ?? entry.descriptor.feature.id(item.model),
+      };
+    });
+  }
+
+  private collectPopupItems(
+    entry: LayerEntry,
+    hitResult: HitTestResult,
+    event: MapBrowserEvent<UIEvent>,
+  ): Array<PopupItem<any>> {
+    if (entry.descriptor.clustering && entry.api.isClusteringEnabled?.() && hitResult.cluster) {
+      const clustering = entry.descriptor.clustering;
+      if (clustering?.popup && this.isEnabled(clustering.popup.enabled)) {
+        const models = hitResult.cluster.features
+          .map((clusterFeature) =>
+            entry.api.getModelByFeature(clusterFeature as Feature<Geometry>),
+          )
+          .filter((model): model is any => model !== undefined);
+        const popupItem = clustering.popup.item({
+          models,
+          size: hitResult.cluster.size,
+          ctx: this.ctx,
+          event,
+        });
+        return [
+          {
+            ...popupItem,
+            source: popupItem.source ?? 'cluster',
+            dedupKey: popupItem.dedupKey ?? this.getClusterDedupKey(entry, models),
+          },
+        ];
+      }
+      return [];
+    }
+    return this.collectFeaturePopupItems(entry, hitResult.items, event);
+  }
+
+  private getClusterDedupKey(entry: LayerEntry, models: any[]): string {
+    const ids = models.map((model) => entry.descriptor.feature.id(model)).join('|');
+    return `cluster:${entry.descriptor.id}:${ids}`;
+  }
+
   private getOrderedLayers(): LayerEntry[] {
     return this.schema.layers
       .map((descriptor, index) => ({
@@ -896,7 +1006,12 @@ export class InteractionManager<
     return base.propagation === 'continue';
   }
 
-  private handleClusterClick(entry: LayerEntry, clusterHit: ClusterHit): boolean {
+  private handleClusterClick(
+    entry: LayerEntry,
+    clusterHit: ClusterHit,
+    event: MapBrowserEvent<UIEvent>,
+    manualPopupPush: boolean,
+  ): boolean {
     const clustering = entry.descriptor.clustering;
     if (!clustering) {
       return false;
@@ -916,7 +1031,18 @@ export class InteractionManager<
     }
 
     if (clustering.popup && this.isEnabled(clustering.popup.enabled)) {
-      clustering.popup.item({ models, size: clusterHit.size, ctx: this.ctx });
+      if (manualPopupPush || !this.ctx.popupHost) {
+        const item = clustering.popup.item({ models, size: clusterHit.size, ctx: this.ctx, event });
+        if (manualPopupPush && this.ctx.popupHost) {
+          this.ctx.popupHost.push([
+            {
+              ...item,
+              source: item.source ?? 'cluster',
+              dedupKey: item.dedupKey ?? this.getClusterDedupKey(entry, models),
+            },
+          ]);
+        }
+      }
       handled = true;
     }
 

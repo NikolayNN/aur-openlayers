@@ -9,6 +9,7 @@ import View from 'ol/View';
 
 import type {
   HitItem,
+  MapContext,
   MapSchema,
   ModelChange,
   ModelChangeReason,
@@ -76,6 +77,7 @@ const buildManager = (
   layerEntries: Array<{ id: string; layer: VectorLayer }>,
   hitTest?: (args: { layerId: string; hitTolerance: number }) => HitTestResult,
   apiFactory: (id: string) => VectorLayerApi<any, any> = () => createApi(),
+  popupHost?: MapContext['popupHost'],
 ) => {
   const layers: Record<string, VectorLayer> = {};
   const apis: Record<string, VectorLayerApi<any, any>> = {};
@@ -83,7 +85,7 @@ const buildManager = (
     layers[entry.id] = entry.layer as VectorLayer;
     apis[entry.id] = apiFactory(entry.id);
   });
-  const ctx = createMapContext(map, apis);
+  const ctx = createMapContext(map, apis, popupHost);
   return new InteractionManager({
     ctx,
     map,
@@ -250,6 +252,143 @@ describe('InteractionManager', () => {
 
     manager.handleSingleClick(createEvent(map, 'singleclick'));
     expect(tolerances).toEqual([7]);
+  });
+
+  it('auto-collects popup items and stops propagation by default', () => {
+    const map = createMap();
+    const layerA = createLayer('a', 2);
+    const layerB = createLayer('b', 1);
+    const popupHost = jasmine.createSpyObj('popupHost', [
+      'push',
+      'set',
+      'clear',
+      'remove',
+      'getItems',
+      'mount',
+      'dispose',
+    ]);
+
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      options: {
+        popupHost: { autoMode: 'click' },
+      },
+      layers: [
+        {
+          id: 'a',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            popup: {
+              item: ({ model }) => ({ model, content: `a-${model.id}` }),
+            },
+          },
+        },
+        {
+          id: 'b',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            popup: {
+              item: ({ model }) => ({ model, content: `b-${model.id}` }),
+            },
+          },
+        },
+      ],
+    };
+
+    const itemsByLayer: Record<string, Array<HitItem<Model, Point>>> = {
+      a: [createHitItem({ id: 'a', value: 1 })],
+      b: [createHitItem({ id: 'b', value: 2 })],
+    };
+
+    const manager = buildManager(
+      map,
+      schema,
+      [
+        { id: 'a', layer: layerA.layer },
+        { id: 'b', layer: layerB.layer },
+      ],
+      ({ layerId }) => ({ items: itemsByLayer[layerId] }),
+      () => createApi(),
+      popupHost,
+    );
+
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+    expect(popupHost.set).toHaveBeenCalledWith([
+      jasmine.objectContaining({ content: 'a-a', source: 'feature' }),
+    ]);
+  });
+
+  it('auto-collects popup items across layers when propagation continues', () => {
+    const map = createMap();
+    const layerA = createLayer('a', 2);
+    const layerB = createLayer('b', 1);
+    const popupHost = jasmine.createSpyObj('popupHost', [
+      'push',
+      'set',
+      'clear',
+      'remove',
+      'getItems',
+      'mount',
+      'dispose',
+    ]);
+
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      options: {
+        popupHost: { autoMode: 'click', stack: 'continue' },
+      },
+      layers: [
+        {
+          id: 'a',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            popup: {
+              item: ({ model }) => ({ model, content: `a-${model.id}` }),
+            },
+          },
+        },
+        {
+          id: 'b',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            popup: {
+              item: ({ model }) => ({ model, content: `b-${model.id}` }),
+            },
+          },
+        },
+      ],
+    };
+
+    const itemsByLayer: Record<string, Array<HitItem<Model, Point>>> = {
+      a: [createHitItem({ id: 'a', value: 1 })],
+      b: [createHitItem({ id: 'b', value: 2 })],
+    };
+
+    const manager = buildManager(
+      map,
+      schema,
+      [
+        { id: 'a', layer: layerA.layer },
+        { id: 'b', layer: layerB.layer },
+      ],
+      ({ layerId }) => ({ items: itemsByLayer[layerId] }),
+      () => createApi(),
+      popupHost,
+    );
+
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+    expect(popupHost.set).toHaveBeenCalledWith([
+      jasmine.objectContaining({ content: 'a-a', source: 'feature' }),
+      jasmine.objectContaining({ content: 'b-b', source: 'feature' }),
+    ]);
   });
 
   it('propagates based on handled and propagation', () => {
@@ -2028,6 +2167,15 @@ describe('InteractionManager', () => {
         model: modelA,
         content: 'cluster',
       });
+      const popupHost = jasmine.createSpyObj('popupHost', [
+        'push',
+        'set',
+        'clear',
+        'remove',
+        'getItems',
+        'mount',
+        'dispose',
+      ]);
 
       const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
         layers: [
@@ -2101,6 +2249,7 @@ describe('InteractionManager', () => {
         ],
         hitTest,
         apiFactory,
+        popupHost,
       );
 
       manager.handleSingleClick(createEvent(map, 'singleclick'));
@@ -2112,7 +2261,94 @@ describe('InteractionManager', () => {
         models: [modelA, modelB],
         size: 2,
         ctx: jasmine.any(Object),
+        event: jasmine.any(Object),
       });
+      expect(popupHost.push).toHaveBeenCalledWith([
+        jasmine.objectContaining({
+          content: 'cluster',
+          source: 'cluster',
+        }),
+      ]);
+    });
+
+    it('auto-collects cluster popup items without double-calling', () => {
+      const map = createMap();
+      const layerA = createLayer('a', 2);
+      const modelA: Model = { id: 'a', value: 1, coords: [0, 0] };
+      const modelB: Model = { id: 'b', value: 2, coords: [10, 10] };
+      const featureA = new Feature<Point>({ geometry: new Point([0, 0]) });
+      featureA.set('model', modelA);
+      const featureB = new Feature<Point>({ geometry: new Point([10, 10]) });
+      featureB.set('model', modelB);
+      const clusterFeature = new Feature<Point>({ geometry: new Point([5, 5]) });
+      const popupHost = jasmine.createSpyObj('popupHost', [
+        'push',
+        'set',
+        'clear',
+        'remove',
+        'getItems',
+        'mount',
+        'dispose',
+      ]);
+      const onPopup = jasmine.createSpy('popup').and.returnValue({
+        model: modelA,
+        content: 'cluster',
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        options: {
+          popupHost: { autoMode: 'click' },
+        },
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+            },
+            clustering: {
+              clusterStyle: { render: () => [] },
+              popup: {
+                enabled: true,
+                item: onPopup,
+              },
+            },
+          },
+        ],
+      };
+
+      const hitTest = () => ({
+        items: [],
+        cluster: {
+          feature: clusterFeature,
+          features: [featureA, featureB],
+          size: 2,
+        },
+      });
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layerA.layer }],
+        hitTest,
+        () =>
+          createApi({
+            isClusteringEnabled: () => true,
+          }),
+        popupHost,
+      );
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+      expect(onPopup.calls.count()).toBe(1);
+      expect(popupHost.set).toHaveBeenCalledWith([
+        jasmine.objectContaining({
+          content: 'cluster',
+          source: 'cluster',
+        }),
+      ]);
+      expect(popupHost.push).not.toHaveBeenCalled();
     });
 
     it('skips expand when disabled and allows propagation', () => {

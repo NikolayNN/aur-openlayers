@@ -12,6 +12,7 @@ import { createMapContext } from './map-context';
 import { InteractionManager } from './interaction-manager';
 import { ClusteredVectorLayer } from './clustered-layer';
 import { PlainVectorLayer } from './plain-layer';
+import { PopupHost } from './popup-host';
 
 const createInvalidateScheduler = (layer: VectorLayer<VectorSource<any>>): (() => void) => {
   let scheduled = false;
@@ -33,7 +34,8 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
   private readonly interactions: InteractionManager<Layers>;
 
   private constructor(private readonly map: OlMap, schema: MapSchema<Layers>) {
-    const ctx = createMapContext(this.map, this.apis);
+    const popupHost = schema.options?.popupHost ? new PopupHost(schema.options.popupHost) : undefined;
+    const ctx = createMapContext(this.map, this.apis, popupHost);
 
     schema.layers.forEach((descriptor) => {
       const source = new VectorSource<any>();
