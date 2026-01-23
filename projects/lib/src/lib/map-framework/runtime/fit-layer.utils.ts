@@ -4,7 +4,7 @@ import type {ViewFitOptions, ViewFitPadding} from '../public/types';
  * Default padding for View#fit in pixels.
  * Order: [top, right, bottom, left]
  */
-const DEFAULT_OL_PADDING: [number, number, number, number] = [48, 48, 48, 48];
+const DEFAULT_OL_PADDING: [number, number, number, number] = [64, 64, 64, 64];
 const DEFAULT_FIT_DURATION = 500;
 
 function toOlPadding(p?: ViewFitPadding): [number, number, number, number] {
