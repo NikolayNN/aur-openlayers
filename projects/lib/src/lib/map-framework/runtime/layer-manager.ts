@@ -13,29 +13,17 @@ import { InteractionManager } from './interaction-manager';
 import { ClusteredVectorLayer } from './clustered-layer';
 import { PlainVectorLayer } from './plain-layer';
 import { PopupHost } from './popup-host';
-
-const createInvalidateScheduler = (layer: VectorLayer<VectorSource<any>>): (() => void) => {
-  let scheduled = false;
-  return () => {
-    if (scheduled) {
-      return;
-    }
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      layer.changed();
-    });
-  };
-};
+import { FlushScheduler } from './scheduler';
 
 export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any, any, any>[]> {
-  private readonly layers: Record<string, VectorLayer<VectorSource<any>>> = {};
+  private readonly layers: Record<string, VectorLayer> = {};
   private readonly apis: Record<string, VectorLayerApi<any, any>> = {};
   private readonly interactions: InteractionManager<Layers>;
 
   private constructor(private readonly map: OlMap, schema: MapSchema<Layers>) {
     const popupHost = schema.options?.popupHost ? new PopupHost(schema.options.popupHost) : undefined;
-    const ctx = createMapContext(this.map, this.apis, popupHost);
+    const scheduler = new FlushScheduler(schema.options?.scheduler?.policy ?? 'microtask');
+    const ctx = createMapContext(this.map, this.apis, popupHost, scheduler);
 
     schema.layers.forEach((descriptor) => {
       const source = new VectorSource<any>();
@@ -43,7 +31,6 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
         ? new ClusterSource({
             source,
             distance: descriptor.clustering.distance,
-            minDistance: descriptor.clustering.minDistance,
           })
         : null;
       const layer = new VectorLayer({ source });
@@ -58,6 +45,7 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
       }
       layer.set('id', descriptor.id);
 
+      const scheduleInvalidate = () => scheduler.schedule(layer, () => layer.changed());
       const api = descriptor.clustering
         ? new ClusteredVectorLayer({
             descriptor,
@@ -65,14 +53,14 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
             source,
             clusterSource: clusterSource!,
             ctx,
-            scheduleInvalidate: createInvalidateScheduler(layer),
+            scheduleInvalidate,
           })
         : new PlainVectorLayer({
             descriptor,
             layer,
             source,
             ctx,
-            scheduleInvalidate: createInvalidateScheduler(layer),
+            scheduleInvalidate,
           });
 
       this.layers[descriptor.id] = layer;
@@ -96,7 +84,7 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
     return new LayerManager(map, schema);
   }
 
-  getLayer(id: string): VectorLayer<VectorSource<any>> | undefined {
+  getLayer(id: string): VectorLayer | undefined {
     return this.layers[id];
   }
 
@@ -106,5 +94,9 @@ export class LayerManager<Layers extends readonly VectorLayerDescriptor<any, any
 
   getApis(): Record<string, VectorLayerApi<any, any>> {
     return { ...this.apis };
+  }
+
+  refreshEnabled(): void {
+    this.interactions.refreshEnabled();
   }
 }

@@ -242,7 +242,7 @@ export type MapContext = {
    * ctx.layers.lines.invalidate()
    * })
    */
-  batch: (fn: () => void) => void;
+  batch: (fn: () => void, options?: { policy?: "microtask" | "raf" }) => void;
 };
 ```
 
@@ -597,6 +597,13 @@ export interface MapSchema<
   options?: {
     /** global default for hitTolerance if not overridden on interaction */
     hitTolerance?: number;
+    /** invalidation/flush scheduler */
+    scheduler?: {
+      /** default policy for flush */
+      policy?: "microtask" | "raf";
+      /** policy for translate/modify interactions */
+      interactionPolicy?: "microtask" | "raf";
+    };
     /**
      * Global popup host:
      * - aggregates PopupItem’s from feature.popup and clustering.popup
@@ -604,13 +611,138 @@ export interface MapSchema<
      */
     popupHost?: {
       enabled?: Enabled;
+      autoMode?: "off" | "click" | "hover";
       /** maximum items in list (protection against infinite list) */
       maxItems?: number;
       /** popup sorting (if needed) */
       sort?: (a: PopupItem<any>, b: PopupItem<any>) => number;
       /** where to render: container/portal */
       mount?: HTMLElement | (() => HTMLElement);
+      stack?: "stop" | "continue";
     };
   };
 }
+```
+
+## Batching and flush strategy
+
+By default, `invalidate()` and `layer.changed()` are coalesced into a single microtask flush.
+For heavier updates or drag animations you can switch to RAF:
+
+```ts
+const schema: MapSchema<any> = {
+  options: {
+    scheduler: {
+      policy: "microtask",
+      interactionPolicy: "raf",
+    },
+  },
+  layers: [],
+};
+```
+
+You can also select a policy per batch:
+
+```ts
+ctx.batch(() => {
+  ctx.layers.points.mutate(id1, (prev) => ({ ...prev, coords: [1, 2] }));
+  ctx.layers.points.mutate(id2, (prev) => ({ ...prev, coords: [3, 4] }));
+}, { policy: "raf" });
+```
+
+## Runtime toggle enabled
+
+If `enabled` is a function and its value changes at runtime, call
+`layerManager.refreshEnabled()` to:
+- attach/detach OL listeners,
+- clear hover/select/active translate/modify state,
+- stop active throttle timers.
+
+Disable performs a silent cleanup: onLeave/onClear/onEnd are not invoked.
+
+## Examples
+
+### 1) Basic points layer + hover/select + popup
+
+```ts
+const schema: MapSchema<any> = {
+  options: {
+    popupHost: { enabled: true, autoMode: "click" },
+  },
+  layers: [
+    {
+      id: "points",
+      feature: {
+        id: (m) => m.id,
+        geometry: {
+          fromModel: (m) => new Point(m.coords),
+          applyGeometryToModel: (prev, geometry) => ({
+            ...prev,
+            coords: (geometry as Point).getCoordinates(),
+          }),
+        },
+        style: {
+          base: () => ({ color: "red" }),
+          states: { HOVER: () => ({ color: "blue" }) },
+          render: () => new Style(),
+        },
+        interactions: {
+          hover: { state: "HOVER" },
+          select: {
+            onSelect: ({ items }) => console.log("selected", items.length),
+          },
+        },
+        popup: {
+          item: ({ model }) => ({ model, content: `Point ${model.id}` }),
+        },
+      },
+    },
+  ],
+};
+```
+
+### 2) Clustering + expandOnClick + cluster popup
+
+```ts
+const schema: MapSchema<any> = {
+  options: { popupHost: { enabled: true, autoMode: "click" } },
+  layers: [
+    {
+      id: "clustered",
+      feature: { id: (m) => m.id, geometry, style },
+      clustering: {
+        enabledByDefault: true,
+        clusterStyle: {
+          render: ({ size }) => new Style({}),
+        },
+        expandOnClick: { mode: "zoomToExtent", padding: 24 },
+        popup: {
+          item: ({ models, size }) => ({
+            model: models[0],
+            content: `Cluster size: ${size}`,
+          }),
+        },
+      },
+    },
+  ],
+};
+```
+
+### 3) Drag/translate + RAF flush
+
+```ts
+const schema: MapSchema<any> = {
+  options: { scheduler: { policy: "microtask", interactionPolicy: "raf" } },
+  layers: [
+    {
+      id: "draggable",
+      feature: {
+        id: (m) => m.id,
+        geometry,
+        style,
+        interactions: { translate: { moveThrottleMs: 16 } },
+      },
+    },
+  ],
+};
 ```

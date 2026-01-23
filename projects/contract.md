@@ -280,7 +280,7 @@ export type MapContext = {
    *     ctx.layers.lines.invalidate()
    *   })
    */
-  batch: (fn: () => void) => void;
+  batch: (fn: () => void, options?: { policy?: "microtask" | "raf" }) => void;
 };
 ```
 
@@ -645,6 +645,13 @@ export interface MapSchema<
   options?: {
     /** общий дефолт для hitTolerance, если не переопределено на interaction */
     hitTolerance?: number;
+    /** планировщик сброса invalidate/changed */
+    scheduler?: {
+      /** дефолтный policy для flush */
+      policy?: "microtask" | "raf";
+      /** policy для translate/modify (например, RAF при drag) */
+      interactionPolicy?: "microtask" | "raf";
+    };
     /**
      * Глобальный popup-хост:
      * - агрегирует PopupItem’ы из feature.popup и clustering.popup
@@ -652,13 +659,138 @@ export interface MapSchema<
      */
     popupHost?: {
       enabled?: Enabled;
+      autoMode?: "off" | "click" | "hover";
       /** максимум элементов в списке (защита от бесконечного списка) */
       maxItems?: number;
       /** сортировка popups (если нужно) */
       sort?: (a: PopupItem<any>, b: PopupItem<any>) => number;
       /** куда рендерить: контейнер/портал */
       mount?: HTMLElement | (() => HTMLElement);
+      stack?: "stop" | "continue";
     };
   };
 }
+```
+
+## Батчинг и стратегия flush
+
+По умолчанию `invalidate()` и `layer.changed()` собираются в один microtask flush.
+Для тяжёлых апдейтов или drag-анимаций можно выбрать RAF:
+
+```ts
+const schema: MapSchema<any> = {
+  options: {
+    scheduler: {
+      policy: "microtask",
+      interactionPolicy: "raf",
+    },
+  },
+  layers: [],
+};
+```
+
+Также можно вручную задать policy для конкретной группы операций:
+
+```ts
+ctx.batch(() => {
+  ctx.layers.points.mutate(id1, (prev) => ({ ...prev, coords: [1, 2] }));
+  ctx.layers.points.mutate(id2, (prev) => ({ ...prev, coords: [3, 4] }));
+}, { policy: "raf" });
+```
+
+## Runtime toggle enabled
+
+Если `enabled` задан функцией и значение меняется во время жизни карты,
+вызовите `layerManager.refreshEnabled()` чтобы:
+- переподключить/отключить OL listeners,
+- очистить hover/select/active translate/modify состояния,
+- остановить активные throttle таймеры.
+
+При disable происходит “тихий” cleanup: onLeave/onClear/onEnd не вызываются.
+
+## Примеры
+
+### 1) Базовый слой точек + hover/select + popup
+
+```ts
+const schema: MapSchema<any> = {
+  options: {
+    popupHost: { enabled: true, autoMode: "click" },
+  },
+  layers: [
+    {
+      id: "points",
+      feature: {
+        id: (m) => m.id,
+        geometry: {
+          fromModel: (m) => new Point(m.coords),
+          applyGeometryToModel: (prev, geometry) => ({
+            ...prev,
+            coords: (geometry as Point).getCoordinates(),
+          }),
+        },
+        style: {
+          base: () => ({ color: "red" }),
+          states: { HOVER: () => ({ color: "blue" }) },
+          render: () => new Style(),
+        },
+        interactions: {
+          hover: { state: "HOVER" },
+          select: {
+            onSelect: ({ items }) => console.log("selected", items.length),
+          },
+        },
+        popup: {
+          item: ({ model }) => ({ model, content: `Point ${model.id}` }),
+        },
+      },
+    },
+  ],
+};
+```
+
+### 2) Кластеризация + expandOnClick + popup кластера
+
+```ts
+const schema: MapSchema<any> = {
+  options: { popupHost: { enabled: true, autoMode: "click" } },
+  layers: [
+    {
+      id: "clustered",
+      feature: { id: (m) => m.id, geometry, style },
+      clustering: {
+        enabledByDefault: true,
+        clusterStyle: {
+          render: ({ size }) => new Style({}),
+        },
+        expandOnClick: { mode: "zoomToExtent", padding: 24 },
+        popup: {
+          item: ({ models, size }) => ({
+            model: models[0],
+            content: `Cluster size: ${size}`,
+          }),
+        },
+      },
+    },
+  ],
+};
+```
+
+### 3) Drag/translate + RAF flush
+
+```ts
+const schema: MapSchema<any> = {
+  options: { scheduler: { policy: "microtask", interactionPolicy: "raf" } },
+  layers: [
+    {
+      id: "draggable",
+      feature: {
+        id: (m) => m.id,
+        geometry,
+        style,
+        interactions: { translate: { moveThrottleMs: 16 } },
+      },
+    },
+  ],
+};
 ```

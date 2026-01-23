@@ -6,7 +6,6 @@ import type Geometry from 'ol/geom/Geometry';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import View from 'ol/View';
-
 import type {
   HitItem,
   MapContext,
@@ -968,7 +967,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -1003,7 +1008,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -1048,7 +1059,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -1091,7 +1108,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -1169,7 +1192,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -1230,7 +1259,13 @@ describe('InteractionManager', () => {
             id: 'a',
             feature: {
               id: (m: Model) => m.id,
-              geometry,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
               style: {} as never,
               interactions: {
                 translate: {
@@ -2351,6 +2386,85 @@ describe('InteractionManager', () => {
       expect(popupHost.push).not.toHaveBeenCalled();
     });
 
+    it('keeps cluster dedupKey stable across model order', () => {
+      const map = createMap();
+      const layerA = createLayer('a', 2);
+      const modelA: Model = { id: 'a', value: 1, coords: [0, 0] };
+      const modelB: Model = { id: 'b', value: 2, coords: [10, 10] };
+      const featureA = new Feature<Point>({ geometry: new Point([0, 0]) });
+      featureA.set('model', modelA);
+      const featureB = new Feature<Point>({ geometry: new Point([10, 10]) });
+      featureB.set('model', modelB);
+      const clusterFeature = new Feature<Point>({ geometry: new Point([5, 5]) });
+      const popupHost = jasmine.createSpyObj('popupHost', [
+        'push',
+        'set',
+        'clear',
+        'remove',
+        'getItems',
+        'mount',
+        'dispose',
+      ]);
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        options: {
+          popupHost: { autoMode: 'click' },
+        },
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+            },
+            clustering: {
+              clusterStyle: { render: () => [] },
+              popup: {
+                enabled: true,
+                item: ({ models }) => ({
+                  model: models[0],
+                  content: `cluster-${models.length}`,
+                }),
+              },
+            },
+          },
+        ],
+      };
+
+      let callCount = 0;
+      const hitTest = () => {
+        callCount += 1;
+        return {
+          items: [],
+          cluster: {
+            feature: clusterFeature,
+            features: callCount === 1 ? [featureA, featureB] : [featureB, featureA],
+            size: 2,
+          },
+        };
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layerA.layer }],
+        hitTest,
+        () =>
+          createApi({
+            isClusteringEnabled: () => true,
+          }),
+        popupHost,
+      );
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+      const firstItem = popupHost.set.calls.argsFor(0)[0][0];
+      const secondItem = popupHost.set.calls.argsFor(1)[0][0];
+      expect(firstItem.dedupKey).toBe(secondItem.dedupKey);
+    });
+
     it('skips expand when disabled and allows propagation', () => {
       const map = createMap();
       const view = map.getView();
@@ -2431,6 +2545,166 @@ describe('InteractionManager', () => {
       expect(fitSpy).not.toHaveBeenCalled();
       expect(animateSpy).not.toHaveBeenCalled();
       expect(lowerClick).toHaveBeenCalled();
+    });
+  });
+
+  describe('enabled toggles', () => {
+    it('detaches listeners and skips handlers when disabled', () => {
+      const map = createMap();
+      const onSpy = spyOn(map, 'on').and.callThrough();
+      const layer = createLayer('a', 1);
+      let enabled = true;
+      const onClick = jasmine.createSpy('onClick');
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {} as never,
+              style: {} as never,
+              interactions: {
+                click: {
+                  enabled: () => enabled,
+                  onClick,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const itemA = createHitItem({ id: 'a', value: 1 });
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => ({ items: [itemA] }),
+      );
+      const eventTypes = onSpy.calls.allArgs().map((args) => String(args[0]));
+      expect(eventTypes).toContain('singleclick');
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+      expect(onClick).toHaveBeenCalledTimes(1);
+
+      enabled = false;
+      manager.refreshEnabled();
+
+      manager.handleSingleClick(createEvent(map, 'singleclick'));
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears translate throttles on disable', () => {
+      jasmine.clock().install();
+
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+      let enabled = true;
+      let mutateCalls = 0;
+
+      const api = createApi({
+        mutate: (_id, update, _reason) => {
+          mutateCalls += 1;
+          const model = update(itemA.model);
+          itemA.feature.set('model', model);
+          itemA.feature.setGeometry(new Point(model.coords ?? [0, 0]));
+        },
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
+              style: {} as never,
+              interactions: {
+                translate: {
+                  enabled: () => enabled,
+                  moveThrottleMs: 100,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => ({ items: [itemA] }),
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [2, 2]));
+      expect(mutateCalls).toBe(1);
+
+      enabled = false;
+      manager.refreshEnabled();
+      jasmine.clock().tick(100);
+      expect(mutateCalls).toBe(1);
+
+      jasmine.clock().uninstall();
+    });
+
+    it('does not call onEnd when translate is disabled', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+      let enabled = true;
+      const onEnd = jasmine.createSpy('onEnd');
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry: {
+                fromModel: (model) => new Point(model.coords ?? [0, 0]),
+                applyGeometryToModel: (prev, next) => ({
+                  ...prev,
+                  coords: (next as Point).getCoordinates() as [number, number],
+                }),
+              },
+              style: {} as never,
+              interactions: {
+                translate: {
+                  enabled: () => enabled,
+                  onEnd,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => ({ items: [itemA] }),
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      enabled = false;
+      manager.refreshEnabled();
+
+      expect(onEnd).not.toHaveBeenCalled();
     });
   });
 });

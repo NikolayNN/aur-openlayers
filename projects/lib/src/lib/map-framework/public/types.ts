@@ -14,6 +14,12 @@ export type Patch<T> = Partial<T> | ((prev: T) => Partial<T>);
 
 export type Enabled = boolean | (() => boolean);
 
+export type FlushPolicy = 'microtask' | 'raf';
+
+export type BatchOptions = {
+  policy?: FlushPolicy;
+};
+
 export type StyleView = {
   /** OpenLayers resolution (map.getView().getResolution()) */
   resolution: number;
@@ -162,7 +168,7 @@ export type MapContext = {
    * ctx.layers.lines.invalidate()
    * })
    */
-  batch: (fn: () => void) => void;
+  batch: (fn: () => void, options?: BatchOptions) => void;
 };
 
 export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
@@ -512,6 +518,13 @@ export interface MapSchema<
   options?: {
     /** global default for hitTolerance if not overridden on interaction */
     hitTolerance?: number;
+    /** batching/invalidation scheduler */
+    scheduler?: {
+      /** flush policy used by default */
+      policy?: FlushPolicy;
+      /** flush policy used for translate/modify interactions */
+      interactionPolicy?: FlushPolicy;
+    };
     /**
      * Global popup host:
      * - aggregates PopupItem’s from feature.popup and clustering.popup

@@ -8,6 +8,8 @@ import type { ModifyEvent } from 'ol/interaction/Modify';
 import type { TranslateEvent } from 'ol/interaction/Translate';
 import ClusterSource from 'ol/source/Cluster';
 import type VectorSource from 'ol/source/Vector';
+import type { EventsKey } from 'ol/events';
+import * as Observable from 'ol/Observable';
 import { createEmpty, extend, isEmpty } from 'ol/extent';
 
 import type {
@@ -30,6 +32,23 @@ type LayerEntry = {
   api: VectorLayerApi<any, any>;
   index: number;
 };
+
+type InteractionEnabledState = {
+  click: boolean;
+  doubleClick: boolean;
+  hover: boolean;
+  select: boolean;
+  translate: boolean;
+  modify: boolean;
+};
+
+type ListenerName =
+  | 'pointermove'
+  | 'singleclick'
+  | 'dblclick'
+  | 'pointerdown'
+  | 'pointerdrag'
+  | 'pointerup';
 
 type ActiveTranslate = {
   targetKey: string | number;
@@ -104,6 +123,8 @@ export class InteractionManager<
   private readonly activeTranslates = new Map<string, ActiveTranslate>();
   private readonly activeModifies = new Map<string, ActiveModify>();
   private readonly popupStack: 'stop' | 'continue';
+  private readonly listenerKeys = new Map<ListenerName, EventsKey>();
+  private readonly enabledState = new Map<string, InteractionEnabledState>();
 
   constructor(options: InteractionManagerOptions<Layers>) {
     this.ctx = options.ctx;
@@ -113,22 +134,39 @@ export class InteractionManager<
     this.apis = options.apis;
     this.hitTest = options.hitTest ?? this.createDefaultHitTest();
     this.popupStack = this.schema.options?.popupHost?.stack ?? 'stop';
+    this.refreshEnabled();
+  }
 
-    this.map.on('pointermove', (event) => this.handlePointerMove(event));
-    this.map.on('singleclick', (event) => this.handleSingleClick(event));
-    this.map.on('dblclick', (event) => this.handleDoubleClick(event));
-    (this.map.on as unknown as (type: string, listener: (event: MapBrowserEvent<UIEvent>) => void) => void)(
-      'pointerdown',
-      (event: MapBrowserEvent<UIEvent>) => this.handlePointerDown(event),
-    );
-    this.map.on('pointerdrag', (event) => this.handlePointerDrag(event));
-    (this.map.on as unknown as (type: string, listener: (event: MapBrowserEvent<UIEvent>) => void) => void)(
-      'pointerup',
-      (event: MapBrowserEvent<UIEvent>) => this.handlePointerUp(event),
-    );
+  refreshEnabled(): void {
+    const popupEnabled = this.isEnabled(this.schema.options?.popupHost?.enabled);
+    if (!popupEnabled) {
+      this.ctx.popupHost?.clear();
+    }
+
+    const nextState = new Map<string, InteractionEnabledState>();
+    this.schema.layers.forEach((descriptor) => {
+      const interactions = descriptor.feature.interactions;
+      nextState.set(descriptor.id, {
+        click: !!interactions?.click && this.isEnabled(interactions.click.enabled),
+        doubleClick:
+          !!interactions?.doubleClick && this.isEnabled(interactions.doubleClick.enabled),
+        hover: !!interactions?.hover && this.isEnabled(interactions.hover.enabled),
+        select: !!interactions?.select && this.isEnabled(interactions.select.enabled),
+        translate: !!interactions?.translate && this.isEnabled(interactions.translate.enabled),
+        modify: !!interactions?.modify && this.isEnabled(interactions.modify.enabled),
+      });
+    });
+
+    this.applyDisabledCleanup(nextState);
+    this.enabledState.clear();
+    nextState.forEach((value, key) => this.enabledState.set(key, value));
+    this.syncListeners(popupEnabled);
   }
 
   handlePointerDown(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('pointerdown')) {
+      return;
+    }
     const layers = this.getOrderedLayers();
     for (const entry of layers) {
       const interactions = entry.descriptor.feature.interactions;
@@ -255,6 +293,9 @@ export class InteractionManager<
   }
 
   handlePointerDrag(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('pointerdrag')) {
+      return;
+    }
     if (this.activeTranslates.size === 0 && this.activeModifies.size === 0) {
       return;
     }
@@ -319,6 +360,9 @@ export class InteractionManager<
   }
 
   handlePointerUp(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('pointerup')) {
+      return;
+    }
     if (this.activeTranslates.size === 0 && this.activeModifies.size === 0) {
       return;
     }
@@ -391,8 +435,12 @@ export class InteractionManager<
   }
 
   handlePointerMove(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('pointermove')) {
+      return;
+    }
     const popupHost = this.ctx.popupHost;
-    const autoMode = this.schema.options?.popupHost?.autoMode ?? 'off';
+    const popupEnabled = this.isEnabled(this.schema.options?.popupHost?.enabled);
+    const autoMode = popupEnabled ? this.schema.options?.popupHost?.autoMode ?? 'off' : 'off';
     const autoHover = autoMode === 'hover';
     const popupItems: Array<PopupItem<any>> = [];
     let popupStopped = false;
@@ -435,8 +483,12 @@ export class InteractionManager<
   }
 
   handleSingleClick(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('singleclick')) {
+      return;
+    }
     const popupHost = this.ctx.popupHost;
-    const autoMode = this.schema.options?.popupHost?.autoMode ?? 'off';
+    const popupEnabled = this.isEnabled(this.schema.options?.popupHost?.enabled);
+    const autoMode = popupEnabled ? this.schema.options?.popupHost?.autoMode ?? 'off' : 'off';
     const autoClick = autoMode === 'click';
     const popupItems: Array<PopupItem<any>> = [];
     let popupStopped = false;
@@ -524,6 +576,9 @@ export class InteractionManager<
   }
 
   handleDoubleClick(event: MapBrowserEvent<UIEvent>): void {
+    if (!this.isListening('dblclick')) {
+      return;
+    }
     const layers = this.getOrderedLayers();
     for (const entry of layers) {
       const doubleClick = entry.descriptor.feature.interactions?.doubleClick;
@@ -550,6 +605,177 @@ export class InteractionManager<
         break;
       }
     }
+  }
+
+  private runInteractionMutation(fn: () => void): void {
+    const policy = this.schema.options?.scheduler?.interactionPolicy;
+    if (policy) {
+      this.ctx.batch(fn, { policy });
+      return;
+    }
+    fn();
+  }
+
+  private syncListeners(popupEnabled: boolean): void {
+    const autoMode = popupEnabled ? this.schema.options?.popupHost?.autoMode ?? 'off' : 'off';
+    const needsHover = autoMode === 'hover';
+    const needsClick = autoMode === 'click';
+
+    let needsPointerMove = needsHover;
+    let needsSingleClick = needsClick;
+    let needsDoubleClick = false;
+    let needsPointerDown = false;
+    let needsPointerDrag = false;
+    let needsPointerUp = false;
+
+    this.schema.layers.forEach((descriptor) => {
+      const state = this.enabledState.get(descriptor.id);
+      if (state?.hover) {
+        needsPointerMove = true;
+      }
+      if (state?.click || state?.select) {
+        needsSingleClick = true;
+      }
+      if (state?.doubleClick) {
+        needsDoubleClick = true;
+      }
+      if (state?.translate || state?.modify) {
+        needsPointerDown = true;
+        needsPointerDrag = true;
+        needsPointerUp = true;
+      }
+      const api = this.apis[descriptor.id];
+      if (
+        descriptor.clustering &&
+        api?.isClusteringEnabled?.() &&
+        (descriptor.clustering.expandOnClick || descriptor.clustering.popup)
+      ) {
+        needsSingleClick = true;
+      }
+    });
+
+    this.toggleListener('pointermove', needsPointerMove, (event) => this.handlePointerMove(event));
+    this.toggleListener('singleclick', needsSingleClick, (event) =>
+      this.handleSingleClick(event),
+    );
+    this.toggleListener('dblclick', needsDoubleClick, (event) => this.handleDoubleClick(event));
+    this.toggleListener('pointerdown', needsPointerDown, (event) => this.handlePointerDown(event));
+    this.toggleListener('pointerdrag', needsPointerDrag, (event) => this.handlePointerDrag(event));
+    this.toggleListener('pointerup', needsPointerUp, (event) => this.handlePointerUp(event));
+  }
+
+  private toggleListener(
+    type: ListenerName,
+    enabled: boolean,
+    handler: (event: MapBrowserEvent<UIEvent>) => void,
+  ): void {
+    if (enabled) {
+      if (!this.listenerKeys.has(type)) {
+        const key = (
+          this.map.on as unknown as (
+            eventType: string,
+            listener: (event: MapBrowserEvent<UIEvent>) => void,
+          ) => EventsKey
+        )(type, handler);
+        this.listenerKeys.set(type, key);
+      }
+      return;
+    }
+    this.removeListener(type);
+  }
+
+  private removeListener(type: ListenerName): void {
+    const key = this.listenerKeys.get(type);
+    if (key) {
+      Observable.unByKey(key);
+      this.listenerKeys.delete(type);
+    }
+  }
+
+  private isListening(type: ListenerName): boolean {
+    return this.listenerKeys.has(type);
+  }
+
+  private applyDisabledCleanup(nextState: Map<string, InteractionEnabledState>): void {
+    this.enabledState.forEach((prev, layerId) => {
+      const next = nextState.get(layerId) ?? {
+        click: false,
+        doubleClick: false,
+        hover: false,
+        select: false,
+        translate: false,
+        modify: false,
+      };
+      const entry = this.getLayerEntry(layerId);
+      if (!entry) {
+        return;
+      }
+
+      if (prev.hover && !next.hover) {
+        this.clearHoverState(entry);
+      }
+      if (prev.select && !next.select) {
+        this.clearSelectState(entry);
+      }
+      if (prev.translate && !next.translate) {
+        this.cancelTranslate(entry);
+      }
+      if (prev.modify && !next.modify) {
+        this.cancelModify(entry);
+      }
+    });
+  }
+
+  private clearHoverState(entry: LayerEntry): void {
+    const prev = this.hoverItems.get(entry.descriptor.id);
+    if (!prev) {
+      return;
+    }
+    const hover = entry.descriptor.feature.interactions?.hover;
+    if (hover?.state) {
+      this.applyState(Array.from(prev.values()), hover.state, false);
+    }
+    this.hoverItems.delete(entry.descriptor.id);
+  }
+
+  private clearSelectState(entry: LayerEntry): void {
+    const prev = this.selectedItems.get(entry.descriptor.id);
+    if (!prev) {
+      return;
+    }
+    const select = entry.descriptor.feature.interactions?.select;
+    if (select?.state) {
+      this.applyState(Array.from(prev.values()), select.state, false);
+    }
+    this.selectedItems.delete(entry.descriptor.id);
+  }
+
+  private cancelTranslate(entry: LayerEntry): void {
+    const active = this.activeTranslates.get(entry.descriptor.id);
+    if (active) {
+      this.finishTranslate(entry, active, active.lastItem);
+    }
+  }
+
+  private cancelModify(entry: LayerEntry): void {
+    const active = this.activeModifies.get(entry.descriptor.id);
+    if (active) {
+      this.finishModify(entry, active, active.lastItem);
+    }
+  }
+
+  private getLayerEntry(layerId: string): LayerEntry | null {
+    const index = this.schema.layers.findIndex((layer) => layer.id === layerId);
+    if (index < 0) {
+      return null;
+    }
+    const descriptor = this.schema.layers[index];
+    const layer = this.layers[layerId];
+    const api = this.apis[layerId];
+    if (!layer || !api) {
+      return null;
+    }
+    return { descriptor, layer, api, index };
   }
 
   private applyTranslateMove(
@@ -579,10 +805,12 @@ export class InteractionManager<
     const translated = geometry.clone();
     translated.translate(delta[0], delta[1]);
 
-    entry.api.mutate(
-      active.targetKey,
-      (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, translated),
-      'translate',
+    this.runInteractionMutation(() =>
+      entry.api.mutate(
+        active.targetKey,
+        (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, translated),
+        'translate',
+      ),
     );
 
     if (translate.onChange) {
@@ -620,10 +848,12 @@ export class InteractionManager<
     }
 
     const nextGeometry = geometry.clone();
-    entry.api.mutate(
-      active.targetKey,
-      (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, nextGeometry),
-      'modify',
+    this.runInteractionMutation(() =>
+      entry.api.mutate(
+        active.targetKey,
+        (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, nextGeometry),
+        'modify',
+      ),
     );
 
     if (modify.onChange) {
@@ -825,7 +1055,10 @@ export class InteractionManager<
   }
 
   private getClusterDedupKey(entry: LayerEntry, models: any[]): string {
-    const ids = models.map((model) => entry.descriptor.feature.id(model)).join('|');
+    const ids = models
+      .map((model) => String(entry.descriptor.feature.id(model)))
+      .sort((a, b) => a.localeCompare(b))
+      .join('|');
     return `cluster:${entry.descriptor.id}:${ids}`;
   }
 
