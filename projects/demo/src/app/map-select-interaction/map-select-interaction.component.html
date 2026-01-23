@@ -1,0 +1,15 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Map select interaction</h2>
+    <p>Клик по точке выделяет ее на карте и отображает название.</p>
+  </header>
+
+  <div class="map-selection">
+    <span class="map-selection__label">Выбранная точка:</span>
+    <span class="map-selection__value">
+      {{ selectedPointName ? selectedPointName : 'не выбрана' }}
+    </span>
+  </div>
+
+  <div #map class="map-canvas"></div>
+</section>
