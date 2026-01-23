@@ -46,6 +46,9 @@ const createApi = (
     syncFeatureFromModel: () => undefined,
     getModelByFeature: (feature) => feature.get('model') as Model,
     mutate: (_id, _update, _reason) => undefined,
+    centerOnModel: () => undefined,
+    centerOnAllModels: () => undefined,
+    centerOnModels: (_ids) => undefined,
     ...overrides,
   };
 };

@@ -1,0 +1,37 @@
+import type {ViewFitOptions, ViewFitPadding} from '../public/types';
+
+/**
+ * Default padding for View#fit in pixels.
+ * Order: [top, right, bottom, left]
+ */
+const DEFAULT_OL_PADDING: [number, number, number, number] = [48, 48, 48, 48];
+const DEFAULT_FIT_DURATION = 500;
+
+function toOlPadding(p?: ViewFitPadding): [number, number, number, number] {
+  if (!p) {
+    return DEFAULT_OL_PADDING;
+  }
+
+  if ('all' in p) {
+    const a = p.all;
+    return [a, a, a, a];
+  }
+
+  if ('vertical' in p && 'horizontal' in p) {
+    return [p.vertical, p.horizontal, p.vertical, p.horizontal];
+  }
+
+  return [p.top, p.right, p.bottom, p.left];
+}
+
+export function toOlFitOptions(opts?: ViewFitOptions) {
+  const padding = toOlPadding(opts?.padding);
+  const duration = opts?.duration ?? DEFAULT_FIT_DURATION;
+
+  // OL View#fit options are a plain object; keep it minimal & typed-friendly
+  const fitOpts: any = {padding, duration};
+  if (opts?.maxZoom != null) {
+    fitOpts.maxZoom = opts.maxZoom;
+  }
+  return fitOpts;
+}

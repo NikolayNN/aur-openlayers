@@ -1,7 +1,7 @@
 import Feature from 'ol/Feature';
 import type Geometry from 'ol/geom/Geometry';
 import type VectorLayer from 'ol/layer/Vector';
-import { createEmpty } from 'ol/extent';
+import {createEmpty, extend, isEmpty} from 'ol/extent';
 import type ClusterSource from 'ol/source/Cluster';
 import type VectorSource from 'ol/source/Vector';
 
@@ -10,11 +10,12 @@ import type {
   MapContext,
   ModelChange,
   VectorLayerApi,
-  VectorLayerDescriptor,
+  VectorLayerDescriptor, ViewFitOptions,
 } from '../public/types';
 import { FeatureRegistry } from './feature-registry';
 import { clearFeatureStates } from './style/feature-states';
 import { createClusterStyleFunction } from './style/style-pipeline';
+import {toOlFitOptions} from './fit-layer.utils';
 
 export type ClusteredLayerOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: VectorLayerDescriptor<M, G, OPTS>;
@@ -162,6 +163,42 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {
     this.changeHandlers.add(cb);
     return () => this.changeHandlers.delete(cb);
+  }
+
+  /** Fit view to all visible features on this layer (clustered or plain). */
+  centerOnAllModels(opts?: ViewFitOptions): void {
+    const current = this.layer.getSource() as unknown as VectorSource<any> | null;
+    const extent = current?.getExtent?.();
+    if (!extent || isEmpty(extent)) return;
+
+    this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
+  }
+
+  /** Fit view to a single model feature by id (uses underlying plain feature geometry). */
+  centerOnModel(id: string | number, opts?: ViewFitOptions): void {
+    const feature = this.registry.getFeature(id);
+    const geom = feature?.getGeometry();
+    if (!geom) return;
+
+    this.ctx.map.getView().fit(geom.getExtent(), toOlFitOptions(opts));
+  }
+
+  /** Fit view to a subset of model features by ids (combined extent). */
+  centerOnModels(ids: ReadonlyArray<string | number>, opts?: ViewFitOptions): void {
+    const extent = createEmpty();
+
+    let found = false;
+    for (const id of ids) {
+      const feature = this.registry.getFeature(id);
+      const geom = feature?.getGeometry();
+      if (!geom) continue;
+      extend(extent, geom.getExtent());
+      found = true;
+    }
+
+    if (!found || isEmpty(extent)) return;
+
+    this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
   }
 
   private emitModelChanges(changes: ModelChange<M>[]): void {

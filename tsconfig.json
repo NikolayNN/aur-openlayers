@@ -10,6 +10,12 @@
     "paths": {
       "lib": [
         "./dist/lib"
+      ],
+      "ol": [
+        "./node_modules/@types/ol"
+      ],
+      "ol/*": [
+        "./node_modules/@types/ol/*"
       ]
     },
     "noImplicitReturns": true,

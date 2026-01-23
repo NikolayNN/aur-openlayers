@@ -36,3 +36,61 @@ body {
   background: #ffffff;
 }
 
+.map-wrapper {
+  position: relative;
+}
+
+.map-popup-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mf-popup-host {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  max-width: 320px;
+  z-index: 2;
+}
+
+.mf-popup-item {
+  position: relative;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.15);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  pointer-events: auto;
+}
+
+.mf-popup-item button {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.popup-content {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.popup-content h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.popup-content p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}

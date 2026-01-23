@@ -8,10 +8,12 @@ import type {
   MapContext,
   ModelChange,
   VectorLayerApi,
-  VectorLayerDescriptor,
+  VectorLayerDescriptor, ViewFitOptions, ViewFitPadding,
 } from '../public/types';
 import { FeatureRegistry } from './feature-registry';
 import { createStyleFunction } from './style/style-pipeline';
+import {createEmpty, extend, isEmpty} from 'ol/extent';
+import {toOlFitOptions} from './fit-layer.utils';
 
 export type PlainLayerOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: VectorLayerDescriptor<M, G, OPTS>;
@@ -20,6 +22,8 @@ export type PlainLayerOptions<M, G extends Geometry, OPTS extends object> = {
   ctx: MapContext;
   scheduleInvalidate: () => void;
 };
+
+
 
 export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
   implements VectorLayerApi<M, G>
@@ -134,4 +138,47 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     }
     this.changeHandlers.forEach((handler) => handler(changes));
   }
+
+  /** Fit view to all features on the layer. No-op if extent is empty. */
+  centerOnAllModels(opts?: ViewFitOptions): void {
+    const extent = this.source.getExtent();
+    if (!extent || isEmpty(extent)) {
+      return;
+    }
+    this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
+  }
+
+  /** Fit view to a single feature by id. No-op if feature/geometry is missing. */
+  centerOnModel(id: string | number, opts?: ViewFitOptions): void {
+    const feature = this.registry.getFeature(id);
+    const geom = feature?.getGeometry();
+    if (!geom) {
+      return;
+    }
+    this.ctx.map.getView().fit(geom.getExtent(), toOlFitOptions(opts));
+  }
+
+  /**
+   * Fit view to a subset of features by ids (combined extent).
+   * Missing ids are ignored. No-op if none found.
+   */
+  centerOnModels(ids: ReadonlyArray<string | number>, opts?: ViewFitOptions): void {
+    const extent = createEmpty();
+
+    let found = false;
+    for (const id of ids) {
+      const feature = this.registry.getFeature(id);
+      const geom = feature?.getGeometry();
+      if (!geom) continue;
+      extend(extent, geom.getExtent());
+      found = true;
+    }
+
+    if (!found || isEmpty(extent)) {
+      return;
+    }
+
+    this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
+  }
+
 }

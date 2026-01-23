@@ -16,4 +16,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./simple-map-two-static-layers/simple-map-two-static-layers.component').then((m) => m.SimpleMapTwoStaticLayersComponent),
   },
+  {
+    path: 'static-map-point-popup',
+    loadComponent: () =>
+      import('./static-map-point-popup/static-map-point-popup.component').then((m) => m.StaticMapPointPopupComponent),
+  },
 ];

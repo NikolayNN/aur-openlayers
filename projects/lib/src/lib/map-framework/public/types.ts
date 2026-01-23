@@ -82,6 +82,17 @@ export type ModelChange<M> = {
   reason: ModelChangeReason;
 };
 
+export type ViewFitPadding =
+  | { all: number }
+  | { vertical: number; horizontal: number }
+  | { top: number; right: number; bottom: number; left: number };
+
+export type ViewFitOptions = {
+  padding?: ViewFitPadding;
+  duration?: number;
+  maxZoom?: number;
+};
+
 export type Unsubscribe = () => void;
 
 export type VectorLayerApi<M, G extends Geometry> = {
@@ -130,6 +141,39 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * - changes may come in batches
    */
   onModelsChanged?: (cb: (changes: ModelChange<M>[]) => void) => Unsubscribe;
+
+  /**
+   * Centers the map on all features of the layer and fits the view
+   * so that all features are fully visible.
+   *
+   * If the layer has no features (empty extent), nothing happens.
+   *
+   * @param opts Fit options: padding (margins), duration (animation), maxZoom (zoom limit).
+   */
+  centerOnAllModels: (opts?: ViewFitOptions) => void;
+
+  /**
+   * Centers the map on a single feature of the layer by its id and fits
+   * the view to the feature's extent.
+   *
+   * If the feature with the given id is not found or has no geometry,
+   * nothing happens.
+   *
+   * @param id Identifier of the model/feature within the layer.
+   * @param opts Fit options: padding (margins), duration (animation), maxZoom (zoom limit).
+   */
+  centerOnModel: (id: string | number, opts?: ViewFitOptions) => void;
+
+  /**
+   * Centers the map on a set of features of the layer specified by their ids
+   * and fits the view to the combined extent of all found features.
+   *
+   * Missing ids are ignored. If no features are found, nothing happens.
+   *
+   * @param ids Identifiers of the models/features to include in the fit.
+   * @param opts Fit options: padding (margins), duration (animation), maxZoom (zoom limit).
+   */
+  centerOnModels: (ids: ReadonlyArray<string | number>, opts?: ViewFitOptions) => void;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';
