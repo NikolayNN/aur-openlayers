@@ -201,6 +201,10 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
     this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
   }
 
+  setVisible(visible: boolean): void {
+    this.layer.setVisible(visible);
+  }
+
   private emitModelChanges(changes: ModelChange<M>[]): void {
     if (changes.length === 0) {
       return;

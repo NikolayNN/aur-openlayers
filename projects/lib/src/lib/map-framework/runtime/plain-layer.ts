@@ -181,4 +181,8 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
   }
 
+  setVisible(visible: boolean): void {
+    this.layer.setVisible(visible);
+  }
+
 }

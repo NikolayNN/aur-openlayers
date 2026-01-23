@@ -174,6 +174,13 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * @param opts Fit options: padding (margins), duration (animation), maxZoom (zoom limit).
    */
   centerOnModels: (ids: ReadonlyArray<string | number>, opts?: ViewFitOptions) => void;
+
+  /**
+   * Controls layer visibility.
+   *
+   * @param visible When `true`, the layer is visible; when `false`, it is hidden.
+   */
+  setVisible: (visible: boolean) => void;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';

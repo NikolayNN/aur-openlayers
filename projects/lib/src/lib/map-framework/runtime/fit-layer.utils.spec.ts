@@ -3,14 +3,14 @@ import {toOlFitOptions} from './fit-layer.utils';
 describe('toOlFitOptions', () => {
   it('returns defaults when opts is undefined', () => {
     expect(toOlFitOptions()).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 500,
     });
   });
 
   it('uses default padding when padding is not provided', () => {
     expect(toOlFitOptions({ duration: 123 })).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 123,
     });
   });
@@ -40,7 +40,7 @@ describe('toOlFitOptions', () => {
 
   it('passes maxZoom when provided', () => {
     expect(toOlFitOptions({ maxZoom: 16 })).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 500,
       maxZoom: 16,
     });
@@ -48,20 +48,20 @@ describe('toOlFitOptions', () => {
 
   it('does not include maxZoom when it is null/undefined', () => {
     expect(toOlFitOptions({ maxZoom: undefined })).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 500,
     });
 
     // as any to simulate a runtime null (TS type is number | undefined)
     expect(toOlFitOptions({ maxZoom: null } as any)).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 500,
     });
   });
 
   it('allows duration=0 (no animation)', () => {
     expect(toOlFitOptions({ duration: 0 })).toEqual({
-      padding: [48, 48, 48, 48],
+      padding: [64, 64, 64, 64],
       duration: 0,
     });
   });
