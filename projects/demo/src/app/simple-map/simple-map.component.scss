@@ -1,0 +1,24 @@
+.simple-map {
+  display: grid;
+  gap: 1rem;
+}
+
+.simple-map__header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.simple-map__header p {
+  margin: 0.25rem 0 0;
+  color: #5b6470;
+}
+
+.simple-map__canvas {
+  width: 100%;
+  min-height: 60vh;
+  height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+}
