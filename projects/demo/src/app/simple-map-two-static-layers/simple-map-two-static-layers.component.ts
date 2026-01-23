@@ -135,6 +135,7 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
     this.layerManager = LayerManager.create(this.map, schema);
 
     this.layerManager.getApi('points')?.setModels(POINTS);
+    this.layerManager.getApi('points')?.centerOnAllModels();
 
     this.layerManager.getApi('line')?.setModels([new Mapline(POINTS)]);
   }
