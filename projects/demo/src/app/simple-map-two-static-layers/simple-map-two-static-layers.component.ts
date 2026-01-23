@@ -1,6 +1,6 @@
 import {AfterViewInit, Component, ElementRef, ViewChild} from '@angular/core';
 import Map from 'ol/Map';
-import {LayerManager, MapSchema, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
+import {LayerManager, MapSchema, VectorLayerApi, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
 import type Geometry from 'ol/geom/Geometry';
 import TileLayer from 'ol/layer/Tile';
 import OSM from 'ol/source/OSM';
@@ -13,6 +13,11 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
+
+const LAYER_ID = {
+  POINTS: 'points',
+  LINE: 'line',
+} as const;
 
 class MapPoint  {
   constructor(public readonly id: string,
@@ -56,6 +61,8 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
   private map?: Map;
   private layerManager?: LayerManager<readonly VectorLayerDescriptor<MapPoint, Geometry, MapLineStyleOptions>[]>;
 
+  lineVisible = true;
+
   ngAfterViewInit(): void {
     this.map = new Map({
       target: this.mapElement.nativeElement,
@@ -74,7 +81,7 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
       {
         layers: [
           {
-            id: 'line',
+            id: LAYER_ID.LINE,
             feature: {
               id: (model: Mapline) => model.id,
               geometry: {
@@ -98,7 +105,7 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
 
           },
           {
-            id: 'points',
+            id: LAYER_ID.POINTS,
             feature: {
               id: (model: MapPoint) => model.id,
               geometry: {
@@ -134,10 +141,23 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
 
     this.layerManager = LayerManager.create(this.map, schema);
 
-    this.layerManager.getApi('points')?.setModels(POINTS);
-    this.layerManager.getApi('points')?.centerOnAllModels();
+    this.pointLayerApi?.setModels(POINTS);
+    this.pointLayerApi?.centerOnAllModels();
 
-    this.layerManager.getApi('line')?.setModels([new Mapline(POINTS)]);
+    this.lineLayerApi?.setModels([new Mapline(POINTS)]);
+  }
+
+  get lineLayerApi(): VectorLayerApi<Mapline, LineString> | undefined {
+    return this.layerManager?.getApi(LAYER_ID.LINE);
+  }
+
+  get pointLayerApi(): VectorLayerApi<MapPoint, Point> | undefined {
+    return this.layerManager?.getApi(LAYER_ID.POINTS);
+  }
+
+  protected toggleLineLayer() {
+    this.lineVisible = !this.lineVisible;
+    this.layerManager?.getApi('line')?.setVisible(this.lineVisible);
   }
 
   ngOnDestroy(): void {

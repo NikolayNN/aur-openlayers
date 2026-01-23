@@ -4,5 +4,9 @@
     <p>Простая Карта статические точки с названием. 2 слоя.</p>
   </header>
 
+  <button type="button" (click)="toggleLineLayer()">
+    {{ lineVisible ? 'Скрыть линию' : 'Показать линию' }}
+  </button>
+
   <div #map class="map-canvas"></div>
 </section>
