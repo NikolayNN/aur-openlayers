@@ -29,6 +29,11 @@
   flex-wrap: wrap;
 }
 
+app__nav-container {
+  display: flex;
+  flex-direction: row;
+}
+
 .app__nav a {
   display: inline-flex;
   align-items: center;

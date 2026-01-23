@@ -11,4 +11,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./simple-map/simple-map.component').then((m) => m.SimpleMapComponent),
   },
+  {
+    path: 'simple-map-two-static-layers',
+    loadComponent: () =>
+      import('./simple-map-two-static-layers/simple-map-two-static-layers.component').then((m) => m.SimpleMapTwoStaticLayersComponent),
+  },
 ];
