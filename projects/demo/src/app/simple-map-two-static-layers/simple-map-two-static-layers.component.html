@@ -8,5 +8,17 @@
     {{ lineVisible ? 'Скрыть линию' : 'Показать линию' }}
   </button>
 
+  <label class="opacity-control">
+    <span>Прозрачность линии: {{ lineOpacity }}</span>
+    <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      [value]="lineOpacity"
+      (input)="onLineOpacityInput($event)"
+    />
+  </label>
+
   <div #map class="map-canvas"></div>
 </section>

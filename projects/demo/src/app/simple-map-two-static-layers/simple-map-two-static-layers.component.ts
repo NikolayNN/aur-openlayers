@@ -62,6 +62,7 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
   private layerManager?: LayerManager<readonly VectorLayerDescriptor<MapPoint, Geometry, MapLineStyleOptions>[]>;
 
   lineVisible = true;
+  lineOpacity = 1; // 0..1
 
   ngAfterViewInit(): void {
     this.map = new Map({
@@ -157,7 +158,12 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
 
   protected toggleLineLayer() {
     this.lineVisible = !this.lineVisible;
-    this.layerManager?.getApi('line')?.setVisible(this.lineVisible);
+    this.lineLayerApi?.setVisible(this.lineVisible);
+  }
+
+  protected onLineOpacityInput(e: Event) {
+    this.lineOpacity = Number((e.target as HTMLInputElement).value);
+    this.lineLayerApi?.setOpacity(this.lineOpacity);
   }
 
   ngOnDestroy(): void {
