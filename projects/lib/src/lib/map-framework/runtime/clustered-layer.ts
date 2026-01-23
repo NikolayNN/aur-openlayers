@@ -16,6 +16,7 @@ import { FeatureRegistry } from './feature-registry';
 import { clearFeatureStates } from './style/feature-states';
 import { createClusterStyleFunction } from './style/style-pipeline';
 import {toOlFitOptions} from './fit-layer.utils';
+import {model} from '@angular/core';
 
 export type ClusteredLayerOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: VectorLayerDescriptor<M, G, OPTS>;
@@ -217,6 +218,13 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
     return this.layer.getOpacity();
   }
 
+  getZIndex(): number | undefined {
+    return this.layer.getZIndex();
+  }
+
+  setZIndex(z: number): void {
+    this.layer.setZIndex(z);
+  }
 
   private emitModelChanges(changes: ModelChange<M>[]): void {
     if (changes.length === 0) {

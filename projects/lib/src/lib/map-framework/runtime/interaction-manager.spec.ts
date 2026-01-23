@@ -53,6 +53,8 @@ const createApi = (
     isVisible: () => true,
     setOpacity: () => undefined,
     getOpacity: () => 1,
+    getZIndex: () => 1,
+    setZIndex: () => undefined,
     ...overrides,
   };
 };

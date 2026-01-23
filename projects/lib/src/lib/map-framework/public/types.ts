@@ -203,6 +203,21 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * @returns Layer opacity in range [0..1].
    */
   getOpacity: () => number;
+
+  /**
+   * Sets layer z-index (rendering order among layers).
+   * Higher z-index is rendered on top of lower ones.
+   *
+   * @param z Layer z-index.
+   */
+  setZIndex: (z: number) => void;
+
+  /**
+   * Returns current layer z-index.
+   *
+   * @returns Layer z-index (may be undefined if not set explicitly).
+   */
+  getZIndex: () => number | undefined;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';

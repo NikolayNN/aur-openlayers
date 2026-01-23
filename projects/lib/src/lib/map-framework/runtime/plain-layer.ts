@@ -8,13 +8,13 @@ import type {
   MapContext,
   ModelChange,
   VectorLayerApi,
-  VectorLayerDescriptor, ViewFitOptions, ViewFitPadding,
+  VectorLayerDescriptor,
+  ViewFitOptions,
 } from '../public/types';
-import { FeatureRegistry } from './feature-registry';
-import { createStyleFunction } from './style/style-pipeline';
+import {FeatureRegistry} from './feature-registry';
+import {createStyleFunction} from './style/style-pipeline';
 import {createEmpty, extend, isEmpty} from 'ol/extent';
 import {toOlFitOptions} from './fit-layer.utils';
-import {model} from '@angular/core';
 
 export type PlainLayerOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: VectorLayerDescriptor<M, G, OPTS>;
@@ -25,10 +25,8 @@ export type PlainLayerOptions<M, G extends Geometry, OPTS extends object> = {
 };
 
 
-
 export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
-  implements VectorLayerApi<M, G>
-{
+  implements VectorLayerApi<M, G> {
   private readonly descriptor: FeatureDescriptor<M, G, OPTS>;
   private readonly layer: VectorLayer;
   private readonly source: VectorSource<G>;
@@ -75,7 +73,7 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
       feature.setId(id);
       this.registry.set(id, model, feature);
       this.source.addFeature(feature);
-      this.descriptor.geometry.onCreate?.({ feature, model, ctx: this.ctx });
+      this.descriptor.geometry.onCreate?.({feature, model, ctx: this.ctx});
     });
 
     const toRemove: Array<string | number> = [];
@@ -125,7 +123,7 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     this.registry.updateModel(id, next);
     this.syncFeatureFromModel(next);
     this.scheduleInvalidate();
-    this.emitModelChanges([{ prev, next, reason }]);
+    this.emitModelChanges([{prev, next, reason}]);
   }
 
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {
@@ -196,5 +194,13 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
 
   getOpacity(): number {
     return this.layer.getOpacity();
+  }
+
+  getZIndex(): number | undefined {
+    return this.layer.getZIndex();
+  }
+
+  setZIndex(z: number): void {
+    this.layer.setZIndex(z);
   }
 }
