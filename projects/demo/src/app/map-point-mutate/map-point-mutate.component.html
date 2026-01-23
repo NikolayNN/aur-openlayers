@@ -1,0 +1,43 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Map point mutate</h2>
+    <p>Редактируйте данные модели и наблюдайте обновление точек на карте.</p>
+  </header>
+
+  <div class="map-layout">
+    <div class="map-controls">
+      <div class="point-card" *ngFor="let point of POINTS; let i = index">
+        <h3>Точка {{ point.id }}</h3>
+        <label class="field">
+          <span>Label</span>
+          <input
+            type="text"
+            [ngModel]="point.name"
+            (ngModelChange)="updatePoint(point.id, 'name', $event)"
+            placeholder="Название"
+          />
+        </label>
+        <label class="field">
+          <span>Lat</span>
+          <input
+            type="number"
+            step="0.0001"
+            [ngModel]="point.lat"
+            (ngModelChange)="updatePoint(point.id, 'lat', $event)"
+          />
+        </label>
+        <label class="field">
+          <span>Lng</span>
+          <input
+            type="number"
+            step="0.0001"
+            [ngModel]="point.lng"
+            (ngModelChange)="updatePoint(point.id, 'lng', $event)"
+          />
+        </label>
+      </div>
+    </div>
+
+    <div #map class="map-canvas"></div>
+  </div>
+</section>

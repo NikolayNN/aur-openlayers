@@ -1,0 +1,58 @@
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.map-controls {
+  display: grid;
+  gap: 1rem;
+}
+
+.point-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.point-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.field input {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.map-canvas {
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 960px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-canvas {
+    min-height: 420px;
+  }
+}

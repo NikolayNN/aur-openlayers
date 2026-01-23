@@ -12,6 +12,13 @@ export const routes: Routes = [
       import('./simple-map/simple-map.component').then((m) => m.SimpleMapComponent),
   },
   {
+    path: 'map-point-mutate',
+    loadComponent: () =>
+      import('./map-point-mutate/map-point-mutate.component').then(
+        (m) => m.MapPointMutateComponent,
+      ),
+  },
+  {
     path: 'map-select-interaction',
     loadComponent: () =>
       import('./map-select-interaction/map-select-interaction.component').then(
