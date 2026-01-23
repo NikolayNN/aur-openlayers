@@ -190,4 +190,11 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     return this.layer.getVisible();
   }
 
+  setOpacity(opacity: number): void {
+    this.layer.setOpacity(opacity);
+  }
+
+  getOpacity(): number {
+    return this.layer.getOpacity();
+  }
 }

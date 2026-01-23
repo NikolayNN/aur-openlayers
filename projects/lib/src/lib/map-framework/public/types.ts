@@ -188,6 +188,21 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * @returns `true` if the layer is visible, otherwise `false`.
    */
   isVisible: () => boolean;
+
+  /**
+   * Sets layer opacity.
+   *
+   * @param opacity Layer opacity in range [0..1],
+   * where 0 — fully transparent, 1 — fully opaque.
+   */
+  setOpacity: (opacity: number) => void;
+
+  /**
+   * Returns current layer opacity.
+   *
+   * @returns Layer opacity in range [0..1].
+   */
+  getOpacity: () => number;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';
