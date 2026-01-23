@@ -1,10 +1,10 @@
 import type Feature from 'ol/Feature';
 import type Geometry from 'ol/geom/Geometry';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
-import type { ModifyEvent } from 'ol/interaction/Modify';
+import type {ModifyEvent} from 'ol/interaction/Modify';
 import type OlMap from 'ol/Map';
 import type Style from 'ol/style/Style';
-import type { TranslateEvent } from 'ol/interaction/Translate';
+import type {TranslateEvent} from 'ol/interaction/Translate';
 
 export type FeatureStyleState = string;
 
@@ -181,6 +181,13 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * @param visible When `true`, the layer is visible; when `false`, it is hidden.
    */
   setVisible: (visible: boolean) => void;
+
+  /**
+   * Returns current layer visibility state.
+   *
+   * @returns `true` if the layer is visible, otherwise `false`.
+   */
+  isVisible: () => boolean;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';

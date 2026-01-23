@@ -14,6 +14,7 @@ import { FeatureRegistry } from './feature-registry';
 import { createStyleFunction } from './style/style-pipeline';
 import {createEmpty, extend, isEmpty} from 'ol/extent';
 import {toOlFitOptions} from './fit-layer.utils';
+import {model} from '@angular/core';
 
 export type PlainLayerOptions<M, G extends Geometry, OPTS extends object> = {
   descriptor: VectorLayerDescriptor<M, G, OPTS>;
@@ -183,6 +184,10 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
 
   setVisible(visible: boolean): void {
     this.layer.setVisible(visible);
+  }
+
+  isVisible(): boolean {
+    return this.layer.getVisible();
   }
 
 }

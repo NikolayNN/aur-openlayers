@@ -205,6 +205,11 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
     this.layer.setVisible(visible);
   }
 
+  isVisible(): boolean {
+    return this.layer.getVisible();
+  }
+
+
   private emitModelChanges(changes: ModelChange<M>[]): void {
     if (changes.length === 0) {
       return;

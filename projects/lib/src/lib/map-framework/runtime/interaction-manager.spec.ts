@@ -50,6 +50,7 @@ const createApi = (
     centerOnAllModels: () => undefined,
     centerOnModels: (_ids) => undefined,
     setVisible: (_visible) => undefined,
+    isVisible: () => true,
     ...overrides,
   };
 };
