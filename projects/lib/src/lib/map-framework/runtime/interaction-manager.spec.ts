@@ -55,6 +55,12 @@ const createApi = (
     getOpacity: () => 1,
     getZIndex: () => 1,
     setZIndex: () => undefined,
+
+    getModelById: (_id) => undefined,
+    hasModel: (_id) => false,
+    getAllModels: () => [],
+    getAllModelIds: () => [],
+
     ...overrides,
   };
 };

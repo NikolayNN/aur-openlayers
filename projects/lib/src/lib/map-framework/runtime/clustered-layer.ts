@@ -226,6 +226,31 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
     this.layer.setZIndex(z);
   }
 
+  getModelById(id: string | number): M | undefined {
+    return this.registry.getModel(id);
+  }
+
+  hasModel(id: string | number): boolean {
+    return this.registry.getFeature(id) != null;
+  }
+
+  getAllModels(): readonly M[] {
+    const out: M[] = [];
+    this.registry.forEachId((id) => {
+      const model = this.registry.getModel(id);
+      if (model !== undefined) {
+        out.push(model);
+      }
+    });
+    return out;
+  }
+
+  getAllModelIds(): Array<string | number> {
+    const out: Array<string | number> = [];
+    this.registry.forEachId((id) => out.push(id));
+    return out;
+  }
+
   private emitModelChanges(changes: ModelChange<M>[]): void {
     if (changes.length === 0) {
       return;

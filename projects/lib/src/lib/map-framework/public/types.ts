@@ -218,6 +218,33 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * @returns Layer z-index (may be undefined if not set explicitly).
    */
   getZIndex: () => number | undefined;
+
+  /**
+   * Returns model by id from the layer registry.
+   *
+   * @param id Model/feature id within the layer.
+   * @returns Model if found, otherwise undefined.
+   */
+  getModelById: (id: string | number) => M | undefined;
+
+  /**
+   * Checks whether a model with the given id exists on the layer.
+   *
+   * @param id Model/feature id within the layer.
+   */
+  hasModel: (id: string | number) => boolean;
+
+  /**
+   * Returns current models of the layer (snapshot).
+   * Order is not guaranteed.
+   */
+  getAllModels: () => readonly M[];
+
+  /**
+   * Returns ids of all models currently present on the layer (snapshot).
+   * Order is not guaranteed.
+   */
+  getAllModelIds: () => Array<string | number>;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';
