@@ -45,6 +45,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-route-iterations',
+    loadComponent: () =>
+      import('./map-route-iterations/map-route-iterations.component').then(
+        (m) => m.MapRouteIterationsComponent,
+      ),
+  },
+  {
     path: 'static-map-point-popup',
     loadComponent: () =>
       import('./static-map-point-popup/static-map-point-popup.component').then((m) => m.StaticMapPointPopupComponent),

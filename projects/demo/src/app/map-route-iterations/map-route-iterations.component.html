@@ -1,0 +1,88 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Route iterations demofffffffffffff</h2>
+    <p>
+      Пять точек в районе Минска соединены линией, индекс отображается прямо в круге.
+      Наведение раскрывает детали, выбор точки позволяет изменить имя.
+    </p>
+  </header>
+
+  <div class="map-layout">
+    <aside class="map-panel">
+      <div class="map-panel__block">
+        <h3>Итерации маршрута</h3>
+        <p class="map-panel__hint">Переключайте порядок точек, чтобы сравнить разные варианты.</p>
+        <div class="iteration-buttons">
+          <button
+            *ngFor="let iteration of iterations"
+            type="button"
+            class="iteration-button"
+            [class.is-active]="iteration.id === activeIterationId"
+            (click)="setIteration(iteration)"
+          >
+            {{ iteration.label }}
+          </button>
+        </div>
+        <p class="map-panel__note">
+          {{ activeIteration?.description }}
+        </p>
+      </div>
+
+      <div class="map-panel__block">
+        <div class="map-panel__header">
+          <h3>Выбранная точка</h3>
+          <span class="map-panel__badge" [class.is-active]="isDragging">
+            {{ isDragging ? 'перемещение…' : 'ожидание' }}
+          </span>
+        </div>
+        <ng-container *ngIf="selectedPoint; else emptySelection">
+          <label class="map-panel__label" for="point-name">Название</label>
+          <input
+            id="point-name"
+            class="map-panel__input"
+            type="text"
+            [(ngModel)]="selectedPointName"
+            (ngModelChange)="onSelectedPointNameChange($event)"
+          />
+          <dl class="map-panel__list">
+            <div>
+              <dt>Индекс</dt>
+              <dd>{{ selectedPoint.orderIndex }}</dd>
+            </div>
+            <div>
+              <dt>Lat</dt>
+              <dd>{{ selectedPoint.lat | number : '1.4-4' }}</dd>
+            </div>
+            <div>
+              <dt>Lng</dt>
+              <dd>{{ selectedPoint.lng | number : '1.4-4' }}</dd>
+            </div>
+          </dl>
+        </ng-container>
+        <ng-template #emptySelection>
+          <p class="map-panel__empty">Выберите точку на карте, чтобы редактировать имя.</p>
+        </ng-template>
+      </div>
+
+      <div class="map-panel__block">
+        <h3>Порядок точек</h3>
+        <p class="map-panel__hint">Используйте стрелки, чтобы менять последовательность маршрута.</p>
+        <ul class="order-list">
+          <li *ngFor="let point of orderedPoints; let i = index" class="order-list__item">
+            <span class="order-list__index">{{ point.orderIndex }}</span>
+            <span class="order-list__name">{{ point.name }}</span>
+            <div class="order-list__actions">
+              <button type="button" (click)="movePointUp(i)" aria-label="Move up">↑</button>
+              <button type="button" (click)="movePointDown(i)" aria-label="Move down">↓</button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <div class="map-wrapper">
+      <div #map class="map-canvas"></div>
+      <div #popupHost class="map-popup-host"></div>
+    </div>
+  </div>
+</section>
