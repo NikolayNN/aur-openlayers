@@ -12,6 +12,7 @@ import type {
   ViewFitOptions,
 } from '../public/types';
 import {FeatureRegistry} from './feature-registry';
+import {setFeatureStates} from './style/feature-states';
 import {createStyleFunction} from './style/style-pipeline';
 import {createEmpty, extend, isEmpty} from 'ol/extent';
 import {toOlFitOptions} from './fit-layer.utils';
@@ -228,5 +229,22 @@ export class PlainVectorLayer<M, G extends Geometry, OPTS extends object>
     const out: Array<string | number> = [];
     this.registry.forEachId((id) => out.push(id));
     return out;
+  }
+
+  setFeatureStates(
+    ids: string | number | ReadonlyArray<string | number>,
+    states?: string | string[],
+  ): void {
+    const targetIds = Array.isArray(ids) ? ids : [ids];
+    const nextStates = states ? (Array.isArray(states) ? states : [states]) : [];
+
+    targetIds.forEach((id) => {
+      const feature = this.registry.getFeature(id);
+      if (feature) {
+        setFeatureStates(feature, nextStates);
+      }
+    });
+
+    this.scheduleInvalidate();
   }
 }

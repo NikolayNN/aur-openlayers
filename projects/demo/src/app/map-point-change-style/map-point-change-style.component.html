@@ -1,0 +1,31 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Map point change style</h2>
+    <p>Меняйте цвет точек и смотрите обновление стилей прямо на карте.</p>
+  </header>
+
+  <div class="map-layout">
+    <div class="map-controls">
+      <article class="point-card" *ngFor="let point of points">
+        <header class="point-card__header">
+          <h3>{{ point.name }}</h3>
+          <span class="point-card__subtitle">{{ point.id }}</span>
+        </header>
+        <div class="point-card__actions">
+          <button
+            *ngFor="let option of colorOptions"
+            type="button"
+            class="color-button"
+            [class.is-reset]="!option.state"
+            [style.--button-color]="option.color"
+            (click)="changePointColor(point.id, option.state)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <div #map class="map-canvas"></div>
+  </div>
+</section>

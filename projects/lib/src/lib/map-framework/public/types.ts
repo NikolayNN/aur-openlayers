@@ -245,6 +245,17 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * Order is not guaranteed.
    */
   getAllModelIds: () => Array<string | number>;
+
+  /**
+   * Applies style states to one or many features by id and triggers re-render.
+   *
+   * @param ids Model/feature id or a list of ids.
+   * @param states Single state or list of states to set. Pass undefined/empty to clear.
+   */
+  setFeatureStates: (
+    ids: string | number | ReadonlyArray<string | number>,
+    states?: FeatureState,
+  ) => void;
 };
 
 export type PopupItemSource = 'feature' | 'cluster' | 'interaction';

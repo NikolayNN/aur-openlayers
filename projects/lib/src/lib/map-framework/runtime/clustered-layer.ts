@@ -13,7 +13,7 @@ import type {
   VectorLayerDescriptor, ViewFitOptions,
 } from '../public/types';
 import { FeatureRegistry } from './feature-registry';
-import { clearFeatureStates } from './style/feature-states';
+import { clearFeatureStates, setFeatureStates } from './style/feature-states';
 import { createClusterStyleFunction } from './style/style-pipeline';
 import {toOlFitOptions} from './fit-layer.utils';
 import {model} from '@angular/core';
@@ -249,6 +249,23 @@ export class ClusteredVectorLayer<M, G extends Geometry, OPTS extends object>
     const out: Array<string | number> = [];
     this.registry.forEachId((id) => out.push(id));
     return out;
+  }
+
+  setFeatureStates(
+    ids: string | number | ReadonlyArray<string | number>,
+    states?: string | string[],
+  ): void {
+    const targetIds = Array.isArray(ids) ? ids : [ids];
+    const nextStates = states ? (Array.isArray(states) ? states : [states]) : [];
+
+    targetIds.forEach((id) => {
+      const feature = this.registry.getFeature(id);
+      if (feature) {
+        setFeatureStates(feature, nextStates);
+      }
+    });
+
+    this.scheduleInvalidate();
   }
 
   private emitModelChanges(changes: ModelChange<M>[]): void {

@@ -35,4 +35,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./static-map-point-popup/static-map-point-popup.component').then((m) => m.StaticMapPointPopupComponent),
   },
+  {
+    path: 'map-point-change-style',
+    loadComponent: () =>
+      import('./map-point-change-style/map-point-change-style.component').then(
+        (m) => m.MapPointChangeStyleComponent,
+      ),
+  },
 ];

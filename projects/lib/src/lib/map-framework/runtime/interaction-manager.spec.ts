@@ -60,6 +60,7 @@ const createApi = (
     hasModel: (_id) => false,
     getAllModels: () => [],
     getAllModelIds: () => [],
+    setFeatureStates: () => undefined,
 
     ...overrides,
   };
