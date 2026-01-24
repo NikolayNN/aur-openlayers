@@ -314,6 +314,11 @@ export type MapContext = {
   batch: (fn: () => void, options?: BatchOptions) => void;
 };
 
+export type MapController = {
+  bind: (ctx: MapContext) => void;
+  unbind?: () => void;
+};
+
 export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
   /** model identifier */
   id: (model: M) => string | number;

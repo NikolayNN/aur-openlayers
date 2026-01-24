@@ -47,6 +47,6 @@
       </ng-template>
     </aside>
 
-    <div #map class="map-canvas"></div>
+    <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
   </div>
 </section>

@@ -4,5 +4,5 @@
     <p>Простая Карта статические точки с названием.</p>
   </header>
 
-  <div #map class="map-canvas"></div>
+  <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
 </section>

@@ -1,12 +1,9 @@
-import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
-import Map from 'ol/Map';
+import type Map from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import View from 'ol/View';
 import {fromLonLat, toLonLat} from 'ol/proj';
-import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
@@ -14,8 +11,9 @@ import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LineString, Point} from 'ol/geom';
 import {
-  LayerManager,
-  MapSchema,
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
@@ -91,13 +89,13 @@ const applyGeometryToOrderedMapPoint = (prev: OrderedMapPoint, geom: unknown): O
 @Component({
   selector: 'app-map-route-iterations',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MapHostComponent],
   templateUrl: './map-route-iterations.component.html',
   styleUrl: './map-route-iterations.component.scss',
 })
-export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, OnInit {
-  @ViewChild('map', {static: true}) mapElement!: ElementRef<HTMLDivElement>;
+export class MapRouteIterationsComponent implements OnDestroy, OnInit {
   @ViewChild('popupHost', {static: true}) popupHostElement!: ElementRef<HTMLDivElement>;
+  @ViewChild('mapHost', {static: true, read: ElementRef}) mapHostElement!: ElementRef<HTMLElement>;
 
   orderedPoints: OrderedMapPoint[] = [];
   selectedPoint: OrderedMapPoint | null = null;
@@ -105,28 +103,13 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
   dragging = false;
 
   private map?: Map;
-  private layerManager?: LayerManager<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
   private pointsOrder: string[] = [...POINT_IDS];
   private resizeObserver?: ResizeObserver;
+  private pointLayerApi?: VectorLayerApi<OrderedMapPoint, Geometry>;
+  private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
 
-  ngOnInit(): void {
-    this.orderedPoints = BASE_POINTS.map((point, index) =>
-      this.createOrderedPoint(point, index + 1),
-    );
-    this.pointsOrder = this.orderedPoints.map((point) => point.id);
-  }
-
-  ngAfterViewInit(): void {
-    this.map = new Map({
-      target: this.mapElement.nativeElement,
-      layers: [new TileLayer({source: new OSM()})],
-      view: new View({
-        center: fromLonLat([27.5619, 53.9023]),
-        zoom: 11,
-      }),
-    });
-
-    const schema: MapSchema<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
+  readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
+    schema: {
       layers: [
         {
           id: 'route-line',
@@ -218,14 +201,18 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
                 state: 'SELECTED',
                 hitTolerance: 6,
                 onSelect: ({items}) => {
-                  const model = items[0]?.model as OrderedMapPoint | undefined;
-                  this.selectedPoint = model ?? null;
-                  this.selectedPointName = model?.name ?? '';
+                  this.zone.run(() => {
+                    const model = items[0]?.model as OrderedMapPoint | undefined;
+                    this.selectedPoint = model ?? null;
+                    this.selectedPointName = model?.name ?? '';
+                  });
                   return true;
                 },
                 onClear: () => {
-                  this.selectedPoint = null;
-                  this.selectedPointName = '';
+                  this.zone.run(() => {
+                    this.selectedPoint = null;
+                    this.selectedPointName = '';
+                  });
                   return true;
                 },
               },
@@ -233,19 +220,25 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
                 cursor: 'grab',
                 hitTolerance: 6,
                 onStart: () => {
-                  this.dragging = true;
-                  this.syncFromLayer();
+                  this.zone.run(() => {
+                    this.dragging = true;
+                    this.syncFromLayer();
+                  });
                   this.updateLineFromLayer();
                   return true;
                 },
                 onChange: () => {
-                  this.syncFromLayer();
+                  this.zone.run(() => {
+                    this.syncFromLayer();
+                  });
                   this.updateLineFromLayer();
                   return true;
                 },
                 onEnd: () => {
-                  this.dragging = false;
-                  this.syncFromLayer();
+                  this.zone.run(() => {
+                    this.dragging = false;
+                    this.syncFromLayer();
+                  });
                   this.updateLineFromLayer();
                   return true;
                 },
@@ -260,9 +253,32 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
           mount: () => this.popupHostElement.nativeElement,
         },
       },
-    };
+    },
+    view: {
+      centerLonLat: [27.5619, 53.9023],
+      zoom: 11,
+    },
+    osm: true,
+  };
 
-    this.layerManager = LayerManager.create(this.map, schema);
+  constructor(private readonly zone: NgZone) {}
+
+  ngOnInit(): void {
+    this.orderedPoints = BASE_POINTS.map((point, index) =>
+      this.createOrderedPoint(point, index + 1),
+    );
+    this.pointsOrder = this.orderedPoints.map((point) => point.id);
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+    this.map = undefined;
+  }
+
+  onReady(ctx: MapContext): void {
+    this.map = ctx.map;
+    this.pointLayerApi = ctx.layers['points'] as VectorLayerApi<OrderedMapPoint, Geometry> | undefined;
+    this.lineLayerApi = ctx.layers['route-line'] as VectorLayerApi<MapLine, LineString> | undefined;
 
     this.pointLayerApi?.setModels(this.orderedPoints);
     this.pointLayerApi?.centerOnAllModels({padding: {top: 48, right: 48, bottom: 48, left: 48}});
@@ -272,12 +288,7 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
     this.resizeObserver = new ResizeObserver(() => {
       this.map?.updateSize();
     });
-    this.resizeObserver.observe(this.mapElement.nativeElement);
-  }
-
-  ngOnDestroy(): void {
-    this.resizeObserver?.disconnect();
-    this.map?.setTarget(undefined);
+    this.resizeObserver.observe(this.mapHostElement.nativeElement);
   }
 
   movePointUp(index: number): void {
@@ -321,32 +332,29 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
   }
 
   private updateOrderIndexes(): void {
-    const api = this.pointLayerApi;
-    if (!api) return;
+    if (!this.pointLayerApi) return;
     this.pointsOrder.forEach((id, index) => {
-      const model = api.getModelById(id) as OrderedMapPoint | undefined;
+      const model = this.pointLayerApi?.getModelById(id) as OrderedMapPoint | undefined;
       if (!model || model.orderIndex === index + 1) return;
-      api.mutate(id, () => this.updateOrderedPoint(model, {orderIndex: index + 1}));
+      this.pointLayerApi?.mutate(id, () => this.updateOrderedPoint(model, {orderIndex: index + 1}));
     });
   }
 
   private syncFromLayer(): void {
-    const api = this.pointLayerApi;
-    if (!api) return;
+    if (!this.pointLayerApi) return;
     this.orderedPoints = this.pointsOrder
-      .map((id) => api.getModelById(id))
+      .map((id) => this.pointLayerApi?.getModelById(id))
       .filter((point): point is OrderedMapPoint => Boolean(point));
     if (this.selectedPoint) {
-      this.selectedPoint = api.getModelById(this.selectedPoint.id) ?? null;
+      this.selectedPoint = this.pointLayerApi?.getModelById(this.selectedPoint.id) ?? null;
       this.selectedPointName = this.selectedPoint?.name ?? '';
     }
   }
 
   private updateLineFromLayer(): void {
-    const api = this.pointLayerApi;
-    if (!api) return;
+    if (!this.pointLayerApi) return;
     const points = this.pointsOrder
-      .map((id) => api.getModelById(id))
+      .map((id) => this.pointLayerApi?.getModelById(id))
       .filter((point): point is OrderedMapPoint => Boolean(point));
 
     if (!points.length) return;
@@ -404,11 +412,4 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
     return tpl.content.firstElementChild as HTMLElement;
   }
 
-  get pointLayerApi(): VectorLayerApi<OrderedMapPoint, Geometry> | undefined {
-    return this.layerManager?.getApi('points');
-  }
-
-  get lineLayerApi(): VectorLayerApi<MapLine, LineString> | undefined {
-    return this.layerManager?.getApi('route-line');
-  }
 }

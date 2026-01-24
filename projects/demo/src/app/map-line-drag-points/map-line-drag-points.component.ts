@@ -1,18 +1,20 @@
-import {AfterViewInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
+import {Component, NgZone} from '@angular/core';
 import {CommonModule} from '@angular/common';
-import Map from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import View from 'ol/View';
 import {fromLonLat} from 'ol/proj';
-import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
-import {LayerManager, MapSchema, VectorLayerApi, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
+import {
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
+  VectorLayerApi,
+  VectorLayerDescriptor,
+} from '../../../../lib/src/lib/map-framework';
 import {
   applyGeometryToMapPoint,
   mapPointToGeometry,
@@ -49,32 +51,16 @@ const POINT_IDS = POINTS.map((point) => point.id);
 @Component({
   selector: 'app-map-line-drag-points',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MapHostComponent],
   templateUrl: './map-line-drag-points.component.html',
   styleUrl: './map-line-drag-points.component.scss',
 })
-export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('map', {static: true}) mapElement!: ElementRef<HTMLDivElement>;
-
+export class MapLineDragPointsComponent {
   activePoint: MapPoint | null = null;
   dragging = false;
 
-  private map?: Map;
-  private layerManager?: LayerManager<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
-  private unsubscribePointsChange?: () => void;
-  private activePointId: string | null = null;
-
-  ngAfterViewInit(): void {
-    this.map = new Map({
-      target: this.mapElement.nativeElement,
-      layers: [new TileLayer({source: new OSM()})],
-      view: new View({
-        center: fromLonLat([27.5619, 53.9023]),
-        zoom: 11,
-      }),
-    });
-
-    const schema: MapSchema<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
+  readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
+    schema: {
       layers: [
         {
           id: LAYER_ID.LINE,
@@ -144,22 +130,28 @@ export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
                 hitTolerance: 6,
                 state: 'DRAG',
                 onStart: ({item, ctx}) => {
-                  this.dragging = true;
-                  this.activePointId = String(item.model.id);
-                  this.syncActivePoint(ctx);
-                  this.updateLineFromPoints()
+                  this.zone.run(() => {
+                    this.dragging = true;
+                    this.activePointId = String(item.model.id);
+                    this.syncActivePoint(ctx);
+                  });
+                  this.updateLineFromPoints();
                   return true;
                 },
                 onChange: ({item, ctx}) => {
-                  this.activePointId = String(item.model.id);
-                  this.syncActivePoint(ctx);
+                  this.zone.run(() => {
+                    this.activePointId = String(item.model.id);
+                    this.syncActivePoint(ctx);
+                  });
                   this.updateLineFromPoints();
                   return true;
                 },
                 onEnd: ({item, ctx}) => {
-                  this.dragging = false;
-                  this.activePointId = String(item.model.id);
-                  this.syncActivePoint(ctx);
+                  this.zone.run(() => {
+                    this.dragging = false;
+                    this.activePointId = String(item.model.id);
+                    this.syncActivePoint(ctx);
+                  });
                   this.updateLineFromPoints();
                   return true;
                 },
@@ -168,20 +160,30 @@ export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
           },
         },
       ],
-    };
+    },
+    view: {
+      centerLonLat: [27.5619, 53.9023],
+      zoom: 11,
+    },
+    osm: true,
+  };
 
-    this.layerManager = LayerManager.create(this.map, schema);
+  private activePointId: string | null = null;
+
+  private pointLayerApi?: VectorLayerApi<MapPoint, Geometry>;
+  private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
+
+  constructor(private readonly zone: NgZone) {}
+
+  onReady(ctx: MapContext): void {
+    this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<MapPoint, Geometry> | undefined;
+    this.lineLayerApi = ctx.layers[LAYER_ID.LINE] as VectorLayerApi<MapLine, LineString> | undefined;
 
     this.pointLayerApi?.setModels(POINTS);
     this.pointLayerApi?.centerOnAllModels({
       padding: {top: 40, right: 40, bottom: 40, left: 40},
     });
     this.updateLineFromPoints();
-  }
-
-  ngOnDestroy(): void {
-    this.unsubscribePointsChange?.();
-    this.map?.setTarget(undefined);
   }
 
   private syncActivePoint(ctx: {layers: Record<string, VectorLayerApi<MapPoint, Geometry>>}): void {
@@ -200,13 +202,5 @@ export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
 
     if (!points.length) return;
     this.lineLayerApi?.setModels([new MapLine(points)]);
-  }
-
-  get pointLayerApi(): VectorLayerApi<MapPoint, Geometry> | undefined {
-    return this.layerManager?.getApi(LAYER_ID.POINTS);
-  }
-
-  get lineLayerApi(): VectorLayerApi<MapLine, LineString> | undefined {
-    return this.layerManager?.getApi(LAYER_ID.LINE);
   }
 }

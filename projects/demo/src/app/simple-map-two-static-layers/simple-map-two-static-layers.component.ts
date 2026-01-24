@@ -1,10 +1,12 @@
-import {AfterViewInit, Component, ElementRef, ViewChild} from '@angular/core';
-import Map from 'ol/Map';
-import {LayerManager, MapSchema, VectorLayerApi, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
+import {Component} from '@angular/core';
+import {
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
+  VectorLayerApi,
+  VectorLayerDescriptor,
+} from '../../../../lib/src/lib/map-framework';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import OSM from 'ol/source/OSM';
-import View from 'ol/View';
 import {fromLonLat} from 'ol/proj';
 import Point from 'ol/geom/Point';
 import Style from 'ol/style/Style';
@@ -32,7 +34,7 @@ type PointStyleOptions = {
 };
 
 class Mapline  {
-  public readonly id :string = 'one-per-layer'
+  public readonly id: string = 'one-per-layer';
   constructor(public readonly points: MapPoint[]) {
   }
 }
@@ -46,36 +48,15 @@ const POINTS = new MapPointGenerator().getByCount(3);
 
 @Component({
   selector: 'app-simple-map-two-static-layers',
-  imports: [],
+  standalone: true,
+  imports: [MapHostComponent],
   templateUrl: './simple-map-two-static-layers.component.html',
   styleUrl: './simple-map-two-static-layers.component.scss'
 })
-export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
-  @ViewChild('map', { static: true }) mapElement!: ElementRef<HTMLDivElement>;
-
-  private map?: Map;
-  private layerManager?: LayerManager<readonly VectorLayerDescriptor<MapPoint, Geometry, MapLineStyleOptions>[]>;
-
-  lineVisible = true;
-  lineOpacity = 1; // 0..1
-
-  ngAfterViewInit(): void {
-    this.map = new Map({
-      target: this.mapElement.nativeElement,
+export class SimpleMapTwoStaticLayersComponent {
+  readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
+    schema: {
       layers: [
-        new TileLayer({
-          source: new OSM(),
-        }),
-      ],
-      view: new View({
-        center: fromLonLat([27.5619, 53.9023]),
-        zoom: 11,
-      }),
-    });
-
-    const schema: MapSchema<readonly VectorLayerDescriptor<any, Geometry, any>[]> =
-      {
-        layers: [
           {
             id: LAYER_ID.LINE,
             feature: {
@@ -86,7 +67,7 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
                 applyGeometryToModel: (prev: Mapline) => prev, // карта статическая заглушка т.к. координаты с карты не изменяются
               },
               style: {
-                base: (model: Mapline) => ({
+                base: () => ({
                   color: '#ef4444',
                   width: 5,
                 }),
@@ -134,22 +115,28 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
             },
           },
         ],
-      };
+      },
+      view: {
+        centerLonLat: [27.5619, 53.9023],
+        zoom: 11,
+      },
+      osm: true,
+    };
 
-    this.layerManager = LayerManager.create(this.map, schema);
+  lineVisible = true;
+  lineOpacity = 1; // 0..1
+
+  private lineLayerApi?: VectorLayerApi<Mapline, LineString>;
+  private pointLayerApi?: VectorLayerApi<MapPoint, Point>;
+
+  onReady(ctx: MapContext): void {
+    this.lineLayerApi = ctx.layers[LAYER_ID.LINE] as VectorLayerApi<Mapline, LineString> | undefined;
+    this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<MapPoint, Point> | undefined;
 
     this.pointLayerApi?.setModels(POINTS);
     this.pointLayerApi?.centerOnAllModels();
 
     this.lineLayerApi?.setModels([new Mapline(POINTS)]);
-  }
-
-  get lineLayerApi(): VectorLayerApi<Mapline, LineString> | undefined {
-    return this.layerManager?.getApi(LAYER_ID.LINE);
-  }
-
-  get pointLayerApi(): VectorLayerApi<MapPoint, Point> | undefined {
-    return this.layerManager?.getApi(LAYER_ID.POINTS);
   }
 
   protected toggleLineLayer() {
@@ -160,9 +147,5 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
   protected onLineOpacityInput(e: Event) {
     this.lineOpacity = Number((e.target as HTMLInputElement).value);
     this.lineLayerApi?.setOpacity(this.lineOpacity);
-  }
-
-  ngOnDestroy(): void {
-    this.map?.setTarget(undefined);
   }
 }

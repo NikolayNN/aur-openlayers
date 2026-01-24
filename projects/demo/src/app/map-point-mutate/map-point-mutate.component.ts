@@ -1,18 +1,19 @@
-import {AfterViewInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
+import {Component} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
-import OlMap from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import View from 'ol/View';
-import {fromLonLat} from 'ol/proj';
-import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
-import {LayerManager, MapSchema, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
+import {
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
+  VectorLayerApi,
+  VectorLayerDescriptor,
+} from '../../../../lib/src/lib/map-framework';
 import {
   applyGeometryToMapPoint,
   mapPointToGeometry,
@@ -32,31 +33,15 @@ const POINTS: MapPoint[] = new MapPointGenerator().getByCount(3);
 @Component({
   selector: 'app-map-point-mutate',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MapHostComponent],
   templateUrl: './map-point-mutate.component.html',
   styleUrl: './map-point-mutate.component.scss',
 })
-export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('map', {static: true}) mapElement!: ElementRef<HTMLDivElement>;
-
-  private map?: OlMap;
-  private layerManager?: LayerManager<
+export class MapPointMutateComponent {
+  readonly mapConfig: MapHostConfig<
     readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
-  >;
-
-  ngAfterViewInit(): void {
-    this.map = new OlMap({
-      target: this.mapElement.nativeElement,
-      layers: [new TileLayer({source: new OSM()})],
-      view: new View({
-        center: fromLonLat([27.5619, 53.9023]),
-        zoom: 11,
-      }),
-    });
-
-    const schema: MapSchema<
-      readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
-    > = {
+  > = {
+    schema: {
       layers: [
         {
           id: 'points',
@@ -87,13 +72,20 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
           },
         },
       ],
-    };
+    },
+    view: {
+      centerLonLat: [27.5619, 53.9023],
+      zoom: 11,
+    },
+    osm: true,
+  };
 
-    this.layerManager = LayerManager.create(this.map, schema);
+  private pointLayerApi?: VectorLayerApi<MapPoint, Geometry>;
 
-    const api = this.layerManager.getApi('points');
-    api?.setModels(POINTS);
-    api?.centerOnAllModels();
+  onReady(ctx: MapContext): void {
+    this.pointLayerApi = ctx.layers['points'] as VectorLayerApi<MapPoint, Geometry> | undefined;
+    this.pointLayerApi?.setModels(POINTS);
+    this.pointLayerApi?.centerOnAllModels();
   }
 
   updatePoint(id: string, field: 'name' | 'lat' | 'lng', value: string | number): void {
@@ -116,9 +108,8 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
     const updated = this.updatePointModel(current, updates);
 
     POINTS[index] = updated;
-    const api = this.layerManager?.getApi('points');
-    api?.mutate(id, () => updated);
-    api?.centerOnModel(id, { maxZoom: 14 });
+    this.pointLayerApi?.mutate(id, () => updated);
+    this.pointLayerApi?.centerOnModel(id, { maxZoom: 14 });
   }
 
   private updatePointModel(
@@ -138,10 +129,6 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
     );
   }
 
-
-  ngOnDestroy(): void {
-    this.map?.setTarget(undefined);
-  }
 
   protected readonly POINTS = POINTS;
 }

@@ -1,16 +1,17 @@
-import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild} from '@angular/core';
-import Map from 'ol/Map';
+import {Component, NgZone, OnDestroy} from '@angular/core';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import View from 'ol/View';
-import {fromLonLat} from 'ol/proj';
-import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
-import {LayerManager, MapSchema, VectorLayerApi, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
+import {
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
+  VectorLayerApi,
+  VectorLayerDescriptor,
+} from '../../../../lib/src/lib/map-framework';
 import {applyGeometryToMapPoint, mapPointToGeometry, MapPoint} from '../shared/map-point';
 
 type PointStyleOptions = {
@@ -24,35 +25,17 @@ const INITIAL_POINT = new MapPoint('minsk-center', 'Точка Минска', 53
 @Component({
   selector: 'app-map-point-move',
   standalone: true,
+  imports: [MapHostComponent],
   templateUrl: './map-point-move.component.html',
   styleUrl: './map-point-move.component.scss',
 })
-export class MapPointMoveComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('map', {static: true}) mapElement!: ElementRef<HTMLDivElement>;
-
+export class MapPointMoveComponent implements OnDestroy {
   currentPoint = INITIAL_POINT;
 
-  private map?: Map;
-  private layerManager?: LayerManager<
+  readonly mapConfig: MapHostConfig<
     readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
-  >;
-  private unsubscribe?: () => void;
-
-  constructor(private readonly ngZone: NgZone) {}
-
-  ngAfterViewInit(): void {
-    this.map = new Map({
-      target: this.mapElement.nativeElement,
-      layers: [new TileLayer({source: new OSM()})],
-      view: new View({
-        center: fromLonLat([INITIAL_POINT.lng, INITIAL_POINT.lat]),
-        zoom: 12,
-      }),
-    });
-
-    const schema: MapSchema<
-      readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
-    > = {
+  > = {
+    schema: {
       layers: [
         {
           id: 'points',
@@ -100,11 +83,22 @@ export class MapPointMoveComponent implements AfterViewInit, OnDestroy {
           },
         },
       ],
-    };
+    },
+    view: {
+      centerLonLat: [INITIAL_POINT.lng, INITIAL_POINT.lat],
+      zoom: 12,
+    },
+    osm: true,
+  };
 
-    this.layerManager = LayerManager.create(this.map, schema);
+  private pointLayerApi?: VectorLayerApi<MapPoint, Geometry>;
+  private unsubscribe?: () => void;
 
-    const api = this.pointLayerApi;
+  constructor(private readonly ngZone: NgZone) {}
+
+  onReady(ctx: MapContext): void {
+    const api = ctx.layers['points'] as VectorLayerApi<MapPoint, Geometry> | undefined;
+    this.pointLayerApi = api;
     api?.setModels([INITIAL_POINT]);
     api?.centerOnAllModels({maxZoom: 13});
 
@@ -117,16 +111,11 @@ export class MapPointMoveComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  get pointLayerApi(): VectorLayerApi<MapPoint, Geometry> | undefined {
-    return this.layerManager?.getApi('points');
-  }
-
   formatCoord(value: number): string {
     return value.toFixed(6);
   }
 
   ngOnDestroy(): void {
     this.unsubscribe?.();
-    this.map?.setTarget(undefined);
   }
 }

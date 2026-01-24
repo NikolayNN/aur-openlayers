@@ -1,16 +1,16 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
-import Map from 'ol/Map';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import type Geometry from 'ol/geom/Geometry';
-import TileLayer from 'ol/layer/Tile';
-import View from 'ol/View';
-import { fromLonLat } from 'ol/proj';
-import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
-import { LayerManager, MapSchema, VectorLayerDescriptor } from '../../../../lib/src/lib/map-framework';
+import {
+  MapContext,
+  MapHostComponent,
+  MapHostConfig,
+  VectorLayerDescriptor,
+} from '../../../../lib/src/lib/map-framework';
 import {escapeHtml} from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
 import {
   applyGeometryToMapPoint,
@@ -36,91 +36,76 @@ const POINTS = new MapPointGenerator().getByIds([
 @Component({
   selector: 'app-static-map-point-popup',
   standalone: true,
+  imports: [MapHostComponent],
   templateUrl: './static-map-point-popup.component.html',
   styleUrl: './static-map-point-popup.component.scss',
 })
-export class StaticMapPointPopupComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('map', { static: true }) mapElement!: ElementRef<HTMLDivElement>;
+export class StaticMapPointPopupComponent {
   @ViewChild('popupHost', { static: true }) popupHostElement!: ElementRef<HTMLDivElement>;
 
-  private map?: Map;
-  private layerManager?: LayerManager<
+  readonly mapConfig: MapHostConfig<
     readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
-  >;
-
-  ngAfterViewInit(): void {
-    this.map = new Map({
-      target: this.mapElement.nativeElement,
+  > = {
+    schema: {
       layers: [
-        new TileLayer({
-          source: new OSM(),
-        }),
-      ],
-      view: new View({
-        center: fromLonLat([27.5619, 53.9023]),
-        zoom: 11,
-      }),
-    });
-
-    const schema: MapSchema<readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]> =
-      {
-        layers: [
-          {
-            id: 'points',
-            feature: {
-              id: (model: MapPoint) => model.id,
-              geometry: {
-                fromModel: mapPointToGeometry,
-                applyGeometryToModel: applyGeometryToMapPoint,
-              },
-              style: {
-                base: (model: MapPoint) => ({
-                  color: '#2563eb',
-                  radius: 7,
-                  label: model.name,
-                }),
-                render: (opts: PointStyleOptions) =>
-                  new Style({
-                    image: new CircleStyle({
-                      radius: opts.radius,
-                      fill: new Fill({ color: opts.color }),
-                      stroke: new Stroke({ color: '#ffffff', width: 2 }),
-                    }),
-                    text: new Text({
-                      text: opts.label,
-                      offsetY: 18,
-                      fill: new Fill({ color: '#0f172a' }),
-                      stroke: new Stroke({ color: '#ffffff', width: 3 }),
-                      font: '600 12px "Inter", sans-serif',
-                    }),
+        {
+          id: 'points',
+          feature: {
+            id: (model: MapPoint) => model.id,
+            geometry: {
+              fromModel: mapPointToGeometry,
+              applyGeometryToModel: applyGeometryToMapPoint,
+            },
+            style: {
+              base: (model: MapPoint) => ({
+                color: '#2563eb',
+                radius: 7,
+                label: model.name,
+              }),
+              render: (opts: PointStyleOptions) =>
+                new Style({
+                  image: new CircleStyle({
+                    radius: opts.radius,
+                    fill: new Fill({ color: opts.color }),
+                    stroke: new Stroke({ color: '#ffffff', width: 2 }),
                   }),
-              },
-              popup: {
-                item: ({ model }) => ({
-                  model: model,
-                  className: 'popup-card',
-                  content: this.buildPopupContent(model),
+                  text: new Text({
+                    text: opts.label,
+                    offsetY: 18,
+                    fill: new Fill({ color: '#0f172a' }),
+                    stroke: new Stroke({ color: '#ffffff', width: 3 }),
+                    font: '600 12px "Inter", sans-serif',
+                  }),
                 }),
-              },
+            },
+            popup: {
+              item: ({ model }) => ({
+                model: model,
+                className: 'popup-card',
+                content: this.buildPopupContent(model),
+              }),
             },
           },
-        ],
-        options: {
-          popupHost: {
-            autoMode: 'hover',
-            mount: () => this.popupHostElement.nativeElement,
-          },
         },
-      };
+      ],
+      options: {
+        popupHost: {
+          autoMode: 'hover',
+          mount: () => this.popupHostElement.nativeElement,
+        },
+      },
+    },
+    view: {
+      centerLonLat: [27.5619, 53.9023],
+      zoom: 11,
+    },
+    osm: true,
+  };
 
-    this.layerManager = LayerManager.create(this.map, schema);
-    let pointsLayerApi = this.layerManager.getApi('points');
+  onReady(ctx: MapContext): void {
+    const pointsLayerApi = ctx.layers['points'];
     pointsLayerApi?.setModels(POINTS);
     pointsLayerApi?.centerOnAllModels();
-  }
-
-  ngOnDestroy(): void {
-    this.map?.setTarget(undefined);
   }
 
   private buildPopupContent(model: MapPoint): HTMLElement {

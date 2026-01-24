@@ -5,7 +5,11 @@
   </header>
 
   <div class="map-wrapper">
-    <div #map class="map-canvas"></div>
+    <mff-map-host
+      class="map-canvas"
+      [config]="mapConfig"
+      (ready)="onReady($event)"
+    ></mff-map-host>
     <div #popupHost class="map-popup-host"></div>
   </div>
 </section>
