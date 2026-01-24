@@ -515,6 +515,10 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     /** Translate = drag&drop of entire feature */
     translate?: InteractionBase & {
       hitTolerance?: number;
+      /**
+       * Throttle interval for move updates in milliseconds.
+       * For smooth drag UX prefer 0 (no throttle) or ~16/33 for 60/30 FPS.
+       */
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;
@@ -541,6 +545,10 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     /** Modify = geometry editing (vertices/segments) */
     modify?: InteractionBase & {
       hitTolerance?: number;
+      /**
+       * Throttle interval for move updates in milliseconds.
+       * For smooth drag UX prefer 0 (no throttle) or ~16/33 for 60/30 FPS.
+       */
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;

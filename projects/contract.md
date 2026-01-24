@@ -508,6 +508,10 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     
     /** Translate = drag&drop целиком */
     translate?: InteractionBase & {
+      /**
+       * Throttle интервал (мс) для обновлений при перетаскивании.
+       * Для плавности обычно выбирают 0 (без троттлинга) или ~16/33 (60/30 FPS).
+       */
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;
@@ -533,6 +537,10 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     
     /** Modify = редактирование геометрии (вершины/сегменты) */
     modify?: InteractionBase & {
+      /**
+       * Throttle интервал (мс) для обновлений при редактировании.
+       * Для плавности обычно выбирают 0 (без троттлинга) или ~16/33 (60/30 FPS).
+       */
       moveThrottleMs?: number;
       pickTarget?: (args: {
         candidates: Array<HitItem<M, G>>;

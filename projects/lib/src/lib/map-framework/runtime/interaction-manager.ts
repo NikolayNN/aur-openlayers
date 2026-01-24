@@ -4,6 +4,7 @@ import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type OlMap from 'ol/Map';
 import type VectorLayer from 'ol/layer/Vector';
 import Collection from 'ol/Collection';
+import DragPan from 'ol/interaction/DragPan';
 import type { ModifyEvent } from 'ol/interaction/Modify';
 import type { TranslateEvent } from 'ol/interaction/Translate';
 import ClusterSource from 'ol/source/Cluster';
@@ -125,6 +126,8 @@ export class InteractionManager<
   private readonly popupStack: 'stop' | 'continue';
   private readonly listenerKeys = new Map<ListenerName, EventsKey>();
   private readonly enabledState = new Map<string, InteractionEnabledState>();
+  private dragPanLocks = 0;
+  private dragPanStates?: Map<DragPan, boolean>;
   private currentCursor?: string;
 
   constructor(options: InteractionManagerOptions<Layers>) {
@@ -210,6 +213,7 @@ export class InteractionManager<
                 translate,
               };
               this.activeTranslates.set(entry.descriptor.id, active);
+              this.lockDragPan();
 
               if (translate.state) {
                 this.applyState([resolved], translate.state, true);
@@ -277,6 +281,7 @@ export class InteractionManager<
         modify,
       };
       this.activeModifies.set(entry.descriptor.id, active);
+      this.lockDragPan();
 
       if (modify.state) {
         this.applyState([resolved], modify.state, true);
@@ -1042,6 +1047,7 @@ export class InteractionManager<
     }
 
     this.activeTranslates.delete(entry.descriptor.id);
+    this.unlockDragPan();
   }
 
   private finishModify(
@@ -1061,6 +1067,7 @@ export class InteractionManager<
     }
 
     this.activeModifies.delete(entry.descriptor.id);
+    this.unlockDragPan();
   }
 
   private resolveTarget(entry: LayerEntry, targetKey: string | number): HitItem<any, any> | null {
@@ -1081,6 +1088,49 @@ export class InteractionManager<
       return null;
     }
     return { model, feature };
+  }
+
+  private lockDragPan(): void {
+    this.dragPanLocks += 1;
+    if (this.dragPanLocks !== 1) {
+      return;
+    }
+    const interactions = this.map.getInteractions?.();
+    if (!interactions) {
+      return;
+    }
+    const dragPans = interactions
+      .getArray()
+      .filter((interaction): interaction is DragPan => interaction instanceof DragPan);
+    if (dragPans.length === 0) {
+      return;
+    }
+    if (!this.dragPanStates) {
+      this.dragPanStates = new Map();
+    }
+    dragPans.forEach((interaction) => {
+      if (!this.dragPanStates?.has(interaction)) {
+        this.dragPanStates?.set(interaction, interaction.getActive());
+      }
+      interaction.setActive(false);
+    });
+  }
+
+  private unlockDragPan(): void {
+    if (this.dragPanLocks === 0) {
+      return;
+    }
+    this.dragPanLocks -= 1;
+    if (this.dragPanLocks !== 0) {
+      return;
+    }
+    if (!this.dragPanStates) {
+      return;
+    }
+    this.dragPanStates.forEach((wasActive, interaction) => {
+      interaction.setActive(wasActive);
+    });
+    this.dragPanStates = undefined;
   }
 
   private createTranslateEvent(
