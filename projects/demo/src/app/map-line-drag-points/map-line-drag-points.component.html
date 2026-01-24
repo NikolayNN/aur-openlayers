@@ -1,0 +1,52 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Draggable points line</h2>
+    <p>
+      Пять точек в районе Минска соединены линией отдельного слоя. Перетаскивайте точки
+      — линия обновляется автоматически.
+    </p>
+  </header>
+
+  <div class="map-layout">
+    <aside class="map-info">
+      <div class="map-info__header">
+        <h3>Перемещаемая точка</h3>
+        <span class="map-info__status" [class.is-active]="dragging">
+          {{ dragging ? 'перемещение…' : 'ожидание' }}
+        </span>
+      </div>
+
+      <p class="map-info__hint">
+        Нажмите и перетащите маркер, чтобы обновить линию. Информация о выбранной точке
+        отображается здесь.
+      </p>
+
+      <ng-container *ngIf="activePoint; else emptyState">
+        <dl class="map-info__list">
+          <div>
+            <dt>ID</dt>
+            <dd>{{ activePoint.id }}</dd>
+          </div>
+          <div>
+            <dt>Название</dt>
+            <dd>{{ activePoint.name }}</dd>
+          </div>
+          <div>
+            <dt>Lat</dt>
+            <dd>{{ activePoint.lat | number : '1.4-4' }}</dd>
+          </div>
+          <div>
+            <dt>Lng</dt>
+            <dd>{{ activePoint.lng | number : '1.4-4' }}</dd>
+          </div>
+        </dl>
+      </ng-container>
+
+      <ng-template #emptyState>
+        <p class="map-info__empty">Переместите любую точку на карте, чтобы увидеть детали.</p>
+      </ng-template>
+    </aside>
+
+    <div #map class="map-canvas"></div>
+  </div>
+</section>

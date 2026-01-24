@@ -38,6 +38,13 @@ export const routes: Routes = [
       import('./simple-map-two-static-layers/simple-map-two-static-layers.component').then((m) => m.SimpleMapTwoStaticLayersComponent),
   },
   {
+    path: 'map-line-drag-points',
+    loadComponent: () =>
+      import('./map-line-drag-points/map-line-drag-points.component').then(
+        (m) => m.MapLineDragPointsComponent,
+      ),
+  },
+  {
     path: 'static-map-point-popup',
     loadComponent: () =>
       import('./static-map-point-popup/static-map-point-popup.component').then((m) => m.StaticMapPointPopupComponent),
