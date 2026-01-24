@@ -110,8 +110,26 @@ export type InteractionBase = {
    * If enabled is not specified — considered enabled.
    */
   enabled?: Enabled;
-  /** UX: cursor declaratively */
-  cursor?: string | { enter?: string; leave?: string };
+  /**
+   * UX: cursor for interaction.
+   *
+   * The framework sets the cursor on the map DOM element.
+   *
+   * - hover / click / select / doubleClick:
+   *   the cursor is applied while the pointer is over at least one feature
+   *   of the current layer.
+   *
+   * - translate / modify:
+   *   the cursor is applied during the active session (start → end / abort);
+   *   the preview before start can use the same rule as hover.
+   *
+   * Priority:
+   * - an active translate/modify session has the highest priority;
+   * - otherwise the cursor comes from the top layer (hit-test top → bottom).
+   *
+   * If no interaction applies — the cursor is reset to the default value.
+   */
+  cursor?: string;
   /**
    * States applied during interaction activity.
    *

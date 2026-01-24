@@ -40,8 +40,25 @@ export type InteractionBase = {
    * If enabled is not specified — considered enabled.
    */
   enabled?: Enabled;
-  /** UX: cursor declaratively */
-  cursor?: string | { enter?: string; leave?: string };
+  /**
+   * UX: курсор для interaction.
+   *
+   * Фреймворк устанавливает курсор на DOM-элемент карты.
+   *
+   * - hover / click / select / doubleClick:
+   *   курсор применяется, пока указатель находится над хотя бы одной фичей текущего слоя.
+   *
+   * - translate / modify:
+   *   курсор применяется на время активной сессии (start → end / abort);
+   *   превью до старта может использовать то же правило, что и hover.
+   *
+   * Приоритет:
+   * - активная сессия translate/modify имеет высший приоритет;
+   * - иначе курсор задаёт верхний слой (hit-test сверху вниз).
+   *
+   * Если ни одно interaction не применимо — курсор сбрасывается в значение по умолчанию.
+   */
+  cursor?: string;
   /**
    * States applied during interaction activity.
    *

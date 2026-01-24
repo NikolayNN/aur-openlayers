@@ -125,6 +125,7 @@ export class InteractionManager<
   private readonly popupStack: 'stop' | 'continue';
   private readonly listenerKeys = new Map<ListenerName, EventsKey>();
   private readonly enabledState = new Map<string, InteractionEnabledState>();
+  private currentCursor?: string;
 
   constructor(options: InteractionManagerOptions<Layers>) {
     this.ctx = options.ctx;
@@ -290,6 +291,8 @@ export class InteractionManager<
         break;
       }
     }
+
+    this.updateCursor(event);
   }
 
   handlePointerDrag(event: MapBrowserEvent<UIEvent>): void {
@@ -357,6 +360,8 @@ export class InteractionManager<
         break;
       }
     }
+
+    this.updateCursor(event);
   }
 
   handlePointerUp(event: MapBrowserEvent<UIEvent>): void {
@@ -432,6 +437,8 @@ export class InteractionManager<
         break;
       }
     }
+
+    this.updateCursor(event);
   }
 
   handlePointerMove(event: MapBrowserEvent<UIEvent>): void {
@@ -480,6 +487,8 @@ export class InteractionManager<
     if (autoHover && popupHost) {
       popupHost.set(popupItems);
     }
+
+    this.updateCursor(event);
   }
 
   handleSingleClick(event: MapBrowserEvent<UIEvent>): void {
@@ -644,6 +653,10 @@ export class InteractionManager<
         needsPointerDrag = true;
         needsPointerUp = true;
       }
+      const interactions = descriptor.feature.interactions;
+      if (interactions && this.hasCursorInteraction(interactions)) {
+        needsPointerMove = true;
+      }
       const api = this.apis[descriptor.id];
       if (
         descriptor.clustering &&
@@ -662,6 +675,22 @@ export class InteractionManager<
     this.toggleListener('pointerdown', needsPointerDown, (event) => this.handlePointerDown(event));
     this.toggleListener('pointerdrag', needsPointerDrag, (event) => this.handlePointerDrag(event));
     this.toggleListener('pointerup', needsPointerUp, (event) => this.handlePointerUp(event));
+  }
+
+  private hasCursorInteraction(
+    interactions: NonNullable<LayerEntry['descriptor']['feature']['interactions']>,
+  ): boolean {
+    const candidates = [
+      interactions.hover,
+      interactions.select,
+      interactions.click,
+      interactions.doubleClick,
+      interactions.translate,
+      interactions.modify,
+    ];
+    return candidates.some(
+      (interaction) => interaction?.cursor && this.isEnabled(interaction.enabled),
+    );
   }
 
   private toggleListener(
@@ -724,6 +753,8 @@ export class InteractionManager<
         this.cancelModify(entry);
       }
     });
+
+    this.setCursor(undefined);
   }
 
   private clearHoverState(entry: LayerEntry): void {
@@ -762,6 +793,134 @@ export class InteractionManager<
     if (active) {
       this.finishModify(entry, active, active.lastItem);
     }
+  }
+
+  private updateCursor(event?: MapBrowserEvent<UIEvent>): void {
+    const activeCursor = this.getActiveSessionCursor();
+    if (activeCursor !== undefined) {
+      this.setCursor(activeCursor ?? undefined);
+      return;
+    }
+    if (!event) {
+      this.setCursor(undefined);
+      return;
+    }
+
+    for (const entry of this.getOrderedLayers()) {
+      const interactions = entry.descriptor.feature.interactions;
+      if (!interactions) {
+        continue;
+      }
+      const cursor = this.getLayerCursor(interactions);
+      if (!cursor) {
+        continue;
+      }
+      const hitTolerance = this.getCursorHitTolerance(interactions);
+      const { items } = this.hitTest({
+        layerId: entry.descriptor.id,
+        layer: entry.layer,
+        api: entry.api,
+        descriptor: entry.descriptor,
+        event,
+        hitTolerance,
+      });
+      if (items.length > 0) {
+        this.setCursor(cursor);
+        return;
+      }
+    }
+
+    this.setCursor(undefined);
+  }
+
+  private getActiveSessionCursor(): string | null | undefined {
+    for (const entry of this.getOrderedLayers()) {
+      const activeTranslate = this.activeTranslates.get(entry.descriptor.id);
+      if (activeTranslate) {
+        return activeTranslate.translate.cursor ?? null;
+      }
+      const activeModify = this.activeModifies.get(entry.descriptor.id);
+      if (activeModify) {
+        return activeModify.modify.cursor ?? null;
+      }
+    }
+    return undefined;
+  }
+
+  private getLayerCursor(
+    interactions: NonNullable<LayerEntry['descriptor']['feature']['interactions']>,
+  ): string | undefined {
+    const candidates: Array<NonNullable<InteractionBase> | undefined> = [
+      interactions.hover,
+      interactions.select,
+      interactions.click,
+      interactions.doubleClick,
+      interactions.translate,
+      interactions.modify,
+    ];
+    for (const interaction of candidates) {
+      if (!interaction || !interaction.cursor) {
+        continue;
+      }
+      if (!this.isEnabled(interaction.enabled)) {
+        continue;
+      }
+      return interaction.cursor;
+    }
+    return undefined;
+  }
+
+  private getCursorHitTolerance(
+    interactions: NonNullable<LayerEntry['descriptor']['feature']['interactions']>,
+  ): number {
+    const candidates = [
+      interactions.hover,
+      interactions.select,
+      interactions.click,
+      interactions.doubleClick,
+      interactions.translate,
+      interactions.modify,
+    ].filter((interaction) => interaction && interaction.cursor && this.isEnabled(interaction.enabled));
+    if (candidates.length === 0) {
+      return this.getHitTolerance(undefined);
+    }
+    const tolerances = candidates
+      .map((interaction) => interaction?.hitTolerance)
+      .filter((value): value is number => value !== undefined);
+    if (tolerances.length === 0) {
+      return this.getHitTolerance(undefined);
+    }
+    return Math.max(...tolerances);
+  }
+
+  private setCursor(cursor?: string): void {
+    if (this.currentCursor === cursor) {
+      return;
+    }
+    const target = this.getTargetElement();
+    if (!target) {
+      return;
+    }
+    target.style.cursor = cursor ?? '';
+    this.currentCursor = cursor;
+  }
+
+  private getTargetElement(): HTMLElement | null {
+    const targetElement = this.map.getTargetElement?.();
+    if (targetElement) {
+      return targetElement;
+    }
+    const target = this.map.getTarget?.();
+    if (!target) {
+      return null;
+    }
+    if (typeof target === 'string') {
+      if (typeof document === 'undefined') {
+        return null;
+      }
+      return document.getElementById(target);
+    }
+    return target as HTMLElement;
   }
 
   private getLayerEntry(layerId: string): LayerEntry | null {
