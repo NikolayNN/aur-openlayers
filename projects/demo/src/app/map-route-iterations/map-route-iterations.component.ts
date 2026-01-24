@@ -30,18 +30,12 @@ type PointStyleOptions = {
   color: string;
   radius: number;
   label: string;
+  nameLabel: string;
 };
 
 type MapLineStyleOptions = {
   color: string;
   width: number;
-};
-
-type IterationOption = {
-  id: string;
-  label: string;
-  description: string;
-  order: string[];
 };
 
 const POINT_IDS = [
@@ -50,27 +44,6 @@ const POINT_IDS = [
   'minsk-arena',
   'minsk-tractors',
   'minsk-station',
-];
-
-const ITERATIONS: IterationOption[] = [
-  {
-    id: 'base',
-    label: 'Итерация 1',
-    description: 'Стартовый порядок точек для маршрута в районе Минска.',
-    order: [...POINT_IDS],
-  },
-  {
-    id: 'reverse',
-    label: 'Итерация 2',
-    description: 'Обратный порядок — легко сравнить разные варианты маршрута.',
-    order: [...POINT_IDS].reverse(),
-  },
-  {
-    id: 'loop',
-    label: 'Итерация 3',
-    description: 'Смешанная последовательность, чтобы показать перестановку точек.',
-    order: [POINT_IDS[0], POINT_IDS[2], POINT_IDS[4], POINT_IDS[1], POINT_IDS[3]],
-  },
 ];
 
 const BASE_POINTS = new MapPointGenerator().getByIds(POINT_IDS);
@@ -125,9 +98,6 @@ const applyGeometryToOrderedMapPoint = (prev: OrderedMapPoint, geom: unknown): O
 export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChild('map', {static: true}) mapElement!: ElementRef<HTMLDivElement>;
   @ViewChild('popupHost', {static: true}) popupHostElement!: ElementRef<HTMLDivElement>;
-
-  iterations = ITERATIONS;
-  activeIterationId = ITERATIONS[0]?.id ?? 'base';
 
   orderedPoints: OrderedMapPoint[] = [];
   selectedPoint: OrderedMapPoint | null = null;
@@ -195,6 +165,7 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
                 color: '#2563eb',
                 radius: 12,
                 label: String(model.orderIndex),
+                nameLabel: model.name,
               }),
               states: {
                 SELECTED: () => ({
@@ -206,7 +177,7 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
                   radius: 14,
                 }),
               },
-              render: (opts: PointStyleOptions) =>
+              render: (opts: PointStyleOptions) => [
                 new Style({
                   image: new CircleStyle({
                     radius: opts.radius,
@@ -222,6 +193,17 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
                     textBaseline: 'middle',
                   }),
                 }),
+                new Style({
+                  text: new Text({
+                    text: opts.nameLabel,
+                    offsetY: 22,
+                    fill: new Fill({color: '#111827'}),
+                    stroke: new Stroke({color: '#ffffff', width: 3}),
+                    font: '600 12px "Inter", sans-serif',
+                    textAlign: 'center',
+                  }),
+                }),
+              ],
             },
             popup: {
               item: ({model}) => ({
@@ -250,7 +232,6 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
               translate: {
                 cursor: 'grab',
                 hitTolerance: 6,
-                state: 'DRAG',
                 onStart: () => {
                   this.dragging = true;
                   this.syncFromLayer();
@@ -297,15 +278,6 @@ export class MapRouteIterationsComponent implements AfterViewInit, OnDestroy, On
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
     this.map?.setTarget(undefined);
-  }
-
-  setIteration(iteration: IterationOption): void {
-    this.activeIterationId = iteration.id;
-    this.applyPointOrder(iteration.order);
-  }
-
-  get activeIteration(): IterationOption | undefined {
-    return this.iterations.find((iteration) => iteration.id === this.activeIterationId);
   }
 
   movePointUp(index: number): void {

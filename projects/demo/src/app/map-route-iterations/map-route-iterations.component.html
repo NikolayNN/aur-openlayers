@@ -10,25 +10,6 @@
   <div class="map-layout">
     <aside class="map-panel">
       <div class="map-panel__block">
-        <h3>Итерации маршрута</h3>
-        <p class="map-panel__hint">Переключайте порядок точек, чтобы сравнить разные варианты.</p>
-        <div class="iteration-buttons">
-          <button
-            *ngFor="let iteration of iterations"
-            type="button"
-            class="iteration-button"
-            [class.is-active]="iteration.id === activeIterationId"
-            (click)="setIteration(iteration)"
-          >
-            {{ iteration.label }}
-          </button>
-        </div>
-        <p class="map-panel__note">
-          {{ activeIteration?.description }}
-        </p>
-      </div>
-
-      <div class="map-panel__block">
         <div class="map-panel__header">
           <h3>Выбранная точка</h3>
           <span class="map-panel__badge" [class.is-active]="isDragging">
