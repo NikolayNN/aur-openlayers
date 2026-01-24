@@ -1,0 +1,27 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Map point move</h2>
+    <p>Перетаскивайте точку на карте и наблюдайте обновление координат.</p>
+  </header>
+
+  <div class="map-layout">
+    <div class="map-controls">
+      <div class="point-card">
+        <h3>Координаты точки</h3>
+        <p class="hint">Зажмите точку и переместите её по карте, чтобы обновить значения.</p>
+        <div class="coords">
+          <div class="coords__row">
+            <span class="coords__label">Широта</span>
+            <span class="coords__value">{{ formatCoord(currentPoint.lat) }}</span>
+          </div>
+          <div class="coords__row">
+            <span class="coords__label">Долгота</span>
+            <span class="coords__value">{{ formatCoord(currentPoint.lng) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div #map class="map-canvas"></div>
+  </div>
+</section>

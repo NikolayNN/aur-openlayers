@@ -19,6 +19,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-point-move',
+    loadComponent: () =>
+      import('./map-point-move/map-point-move.component').then(
+        (m) => m.MapPointMoveComponent,
+      ),
+  },
+  {
     path: 'map-select-interaction',
     loadComponent: () =>
       import('./map-select-interaction/map-select-interaction.component').then(
