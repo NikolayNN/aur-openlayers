@@ -1,7 +1,6 @@
 import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild} from '@angular/core';
 import Map from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import Point from 'ol/geom/Point';
 import TileLayer from 'ol/layer/Tile';
 import View from 'ol/View';
 import {fromLonLat} from 'ol/proj';
@@ -12,12 +11,12 @@ import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LayerManager, MapSchema, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
-
-type MapPoint = {
-  id: string;
-  name: string;
-  coords: [number, number];
-};
+import {
+  applyGeometryToMapPoint,
+  mapPointToGeometry,
+  MapPoint,
+  MapPointGenerator,
+} from '../shared/map-point';
 
 type PointStyleOptions = {
   color: string;
@@ -25,13 +24,7 @@ type PointStyleOptions = {
   label: string;
 };
 
-const POINTS: MapPoint[] = [
-  { id: 'minsk-center', name: 'Площадь Победы', coords: [27.5678, 53.9097] },
-  { id: 'minsk-library', name: 'Национальная библиотека', coords: [27.6434, 53.9314] },
-  { id: 'minsk-arena', name: 'Минск-Арена', coords: [27.4786, 53.9362] },
-  { id: 'minsk-tractors', name: 'Тракторный завод', coords: [27.6204, 53.8759] },
-  { id: 'minsk-station', name: 'ЖД вокзал', coords: [27.5514, 53.8930] },
-];
+const POINTS = new MapPointGenerator().getByCount(5);
 
 @Component({
   selector: 'app-map-select-interaction',
@@ -49,7 +42,7 @@ export class MapSelectInteractionComponent implements AfterViewInit, OnDestroy {
     readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
   >;
 
-  constructor(private readonly zone: NgZone) {}
+  constructor() {}
 
   ngAfterViewInit(): void {
     this.map = new Map({
@@ -73,8 +66,8 @@ export class MapSelectInteractionComponent implements AfterViewInit, OnDestroy {
             feature: {
               id: (model: MapPoint) => model.id,
               geometry: {
-                fromModel: (model: MapPoint) => new Point(fromLonLat(model.coords)),
-                applyGeometryToModel: (prev: MapPoint) => prev,
+                fromModel: mapPointToGeometry,
+                applyGeometryToModel: applyGeometryToMapPoint,
               },
               style: {
                 base: (model: MapPoint) => ({

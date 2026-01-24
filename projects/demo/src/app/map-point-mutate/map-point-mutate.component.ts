@@ -3,10 +3,9 @@ import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import OlMap from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import Point from 'ol/geom/Point';
 import TileLayer from 'ol/layer/Tile';
 import View from 'ol/View';
-import {fromLonLat, toLonLat} from 'ol/proj';
+import {fromLonLat} from 'ol/proj';
 import OSM from 'ol/source/OSM';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
@@ -14,13 +13,12 @@ import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LayerManager, MapSchema, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
-
-type EditablePoint = {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-};
+import {
+  applyGeometryToMapPoint,
+  mapPointToGeometry,
+  MapPoint,
+  MapPointGenerator,
+} from '../shared/map-point';
 
 type PointStyleOptions = {
   color: string;
@@ -29,11 +27,7 @@ type PointStyleOptions = {
   name: string;
 };
 
-const POINTS: EditablePoint[] = [
-  {id: 'p-1', name: 'Минск центр', lat: 53.9023, lng: 27.5619},
-  {id: 'p-2', name: 'Нац. библиотека', lat: 53.9314, lng: 27.6434},
-  {id: 'p-3', name: 'Минск-Арена', lat: 53.9362, lng: 27.4786},
-];
+const POINTS: MapPoint[] = new MapPointGenerator().getByCount(3);
 
 @Component({
   selector: 'app-map-point-mutate',
@@ -47,7 +41,7 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
 
   private map?: OlMap;
   private layerManager?: LayerManager<
-    readonly VectorLayerDescriptor<EditablePoint, Geometry, PointStyleOptions>[]
+    readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
   >;
 
   ngAfterViewInit(): void {
@@ -61,7 +55,7 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
     });
 
     const schema: MapSchema<
-      readonly VectorLayerDescriptor<EditablePoint, Geometry, PointStyleOptions>[]
+      readonly VectorLayerDescriptor<MapPoint, Geometry, PointStyleOptions>[]
     > = {
       layers: [
         {
@@ -69,12 +63,8 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
           feature: {
             id: (m) => m.id,
             geometry: {
-              fromModel: (m) => new Point(fromLonLat([m.lng, m.lat])),
-              applyGeometryToModel: (prev, geom) => {
-                if (!(geom instanceof Point)) return prev;
-                const [lng, lat] = toLonLat(geom.getCoordinates());
-                return {...prev, lng, lat};
-              },
+              fromModel: mapPointToGeometry,
+              applyGeometryToModel: applyGeometryToMapPoint,
             },
             style: {
               base: (m) => ({color: '#7c3aed', radius: 7, id: m.id, name: m.name}),
@@ -107,30 +97,47 @@ export class MapPointMutateComponent implements AfterViewInit, OnDestroy {
   }
 
   updatePoint(id: string, field: 'name' | 'lat' | 'lng', value: string | number): void {
-    const p = this.getPoint(id);
-    if (!p) return;
+    const index = POINTS.findIndex((p) => p.id === id);
+    if (index === -1) return;
 
-    if (field === 'name') {
-      p.name = String(value);
-    } else {
-      const n = typeof value === 'number' ? value : Number(value);
-      if (!Number.isFinite(n)) return;
-      field === 'lat' ? (p.lat = n) : (p.lng = n);
-    }
+    const current = POINTS[index];
 
-    this.layerManager?.getApi('points')?.mutate(id, (m) => ({
-      ...m,
-      name: p.name,
-      lat: p.lat,
-      lng: p.lng,
-    }));
+    // 1) Собираем updates
+    const updates =
+      field === 'name'
+        ? { name: String(value) }
+        : (() => {
+          const num = typeof value === 'number' ? value : Number(value);
+          return Number.isFinite(num) ? { [field]: num } : null;
+        })();
 
-    this.layerManager?.getApi('points')?.centerOnModel(id, {maxZoom: 14});
+    if (!updates) return;
+
+    const updated = this.updatePointModel(current, updates);
+
+    POINTS[index] = updated;
+    const api = this.layerManager?.getApi('points');
+    api?.mutate(id, () => updated);
+    api?.centerOnModel(id, { maxZoom: 14 });
   }
 
-  private getPoint(id: string): EditablePoint | undefined {
-    return POINTS.find((p) => p.id === id);
+  private updatePointModel(
+    prev: MapPoint,
+    updates: Partial<Pick<MapPoint, 'name' | 'lat' | 'lng'>>,
+  ): MapPoint {
+    return new MapPoint(
+      prev.id,
+      updates.name ?? prev.name,
+      updates.lat ?? prev.lat,
+      updates.lng ?? prev.lng,
+      prev.district,
+      prev.address,
+      prev.details,
+      prev.status,
+      prev.schedule,
+    );
   }
+
 
   ngOnDestroy(): void {
     this.map?.setTarget(undefined);

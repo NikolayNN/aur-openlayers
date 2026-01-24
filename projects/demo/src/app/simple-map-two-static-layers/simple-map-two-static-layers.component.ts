@@ -13,18 +13,17 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
+import {
+  applyGeometryToMapPoint,
+  mapPointToGeometry,
+  MapPoint,
+  MapPointGenerator,
+} from '../shared/map-point';
 
 const LAYER_ID = {
   POINTS: 'points',
   LINE: 'line',
 } as const;
-
-class MapPoint  {
-  constructor(public readonly id: string,
-              public readonly name: string,
-              public readonly coords: [number, number]) {
-  }
-}
 
 type PointStyleOptions = {
   color: string;
@@ -43,11 +42,7 @@ type MapLineStyleOptions = {
   width: number;
 };
 
-const POINTS: MapPoint[] = [
-  { id: 'minsk-center', name: 'Минск', coords: [27.5619, 53.9023] },
-  { id: 'minsk-library', name: 'Нац. библиотека', coords: [27.6434, 53.9314] },
-  { id: 'minsk-arena', name: 'Минск-Арена', coords: [27.4786, 53.9362] },
-];
+const POINTS = new MapPointGenerator().getByCount(3);
 
 @Component({
   selector: 'app-simple-map-two-static-layers',
@@ -86,7 +81,8 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
             feature: {
               id: (model: Mapline) => model.id,
               geometry: {
-                fromModel: (model: Mapline) => new LineString(model.points.map(p => fromLonLat(p.coords))),
+                fromModel: (model: Mapline) =>
+                  new LineString(model.points.map((p) => fromLonLat([p.lng, p.lat]))),
                 applyGeometryToModel: (prev: Mapline) => prev, // карта статическая заглушка т.к. координаты с карты не изменяются
               },
               style: {
@@ -110,8 +106,8 @@ export class SimpleMapTwoStaticLayersComponent implements AfterViewInit {
             feature: {
               id: (model: MapPoint) => model.id,
               geometry: {
-                fromModel: (model: MapPoint) => new Point(fromLonLat(model.coords)),
-                applyGeometryToModel: (prev: MapPoint) => prev, // карта статическая заглушка т.к. координаты с карты не изменяются
+                fromModel: mapPointToGeometry,
+                applyGeometryToModel: applyGeometryToMapPoint,
               },
               style: {
                 base: (model: MapPoint) => ({

@@ -1,7 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
 import Map from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
-import Point from 'ol/geom/Point';
 import TileLayer from 'ol/layer/Tile';
 import View from 'ol/View';
 import { fromLonLat } from 'ol/proj';
@@ -12,14 +11,12 @@ import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LayerManager, MapSchema, VectorLayerDescriptor} from '../../../../lib/src/lib/map-framework';
-
-
-
-type MapPoint = {
-  id: string;
-  name: string;
-  coords: [number, number];
-};
+import {
+  applyGeometryToMapPoint,
+  mapPointToGeometry,
+  MapPoint,
+  MapPointGenerator,
+} from '../shared/map-point';
 
 type PointStyleOptions = {
   color: string;
@@ -27,11 +24,7 @@ type PointStyleOptions = {
   label: string;
 };
 
-const POINTS: MapPoint[] = [
-  { id: 'minsk-center', name: 'Минск', coords: [27.5619, 53.9023] },
-  { id: 'minsk-library', name: 'Нац. библиотека', coords: [27.6434, 53.9314] },
-  { id: 'minsk-arena', name: 'Минск-Арена', coords: [27.4786, 53.9362] },
-];
+const POINTS = new MapPointGenerator().getByCount(3);
 
 @Component({
   selector: 'app-simple-map',
@@ -69,8 +62,8 @@ export class SimpleMapComponent implements AfterViewInit, OnDestroy {
             feature: {
               id: (model: MapPoint) => model.id,
               geometry: {
-                fromModel: (model: MapPoint) => new Point(fromLonLat(model.coords)),
-                applyGeometryToModel: (prev: MapPoint) => prev,
+                fromModel: mapPointToGeometry,
+                applyGeometryToModel: applyGeometryToMapPoint,
               },
               style: {
                 base: (model: MapPoint) => ({
