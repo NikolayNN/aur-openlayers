@@ -147,17 +147,20 @@ export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
                   this.dragging = true;
                   this.activePointId = String(item.model.id);
                   this.syncActivePoint(ctx);
+                  this.updateLineFromPoints()
                   return true;
                 },
                 onChange: ({item, ctx}) => {
                   this.activePointId = String(item.model.id);
                   this.syncActivePoint(ctx);
+                  this.updateLineFromPoints();
                   return true;
                 },
                 onEnd: ({item, ctx}) => {
                   this.dragging = false;
                   this.activePointId = String(item.model.id);
                   this.syncActivePoint(ctx);
+                  this.updateLineFromPoints();
                   return true;
                 },
               },
@@ -174,16 +177,6 @@ export class MapLineDragPointsComponent implements AfterViewInit, OnDestroy {
       padding: {top: 40, right: 40, bottom: 40, left: 40},
     });
     this.updateLineFromPoints();
-
-    const pointApi = this.pointLayerApi;
-    if (pointApi?.onModelsChanged) {
-      this.unsubscribePointsChange = pointApi.onModelsChanged(() => {
-        this.updateLineFromPoints();
-        if (this.activePointId) {
-          this.activePoint = pointApi.getModelById(this.activePointId) ?? null;
-        }
-      });
-    }
   }
 
   ngOnDestroy(): void {
