@@ -634,7 +634,7 @@ export type LayerClustering<M> = {
     /** how to expand */
     mode?: 'zoomToExtent' | 'zoomIn';
     /** padding for fit(extent) */
-    padding?: number | [number, number, number, number];
+    padding?: ViewFitPadding;
     /** maximum zoom for fit/zoomIn */
     maxZoom?: number;
     /** zoom step for zoomIn */

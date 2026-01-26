@@ -25,6 +25,7 @@ import type {
   VectorLayerDescriptor,
 } from '../public/types';
 import { getClusterFeatures } from './cluster-utils';
+import { toOlPadding } from './fit-layer.utils';
 import { getFeatureStates, setFeatureStates } from './style/feature-states';
 
 type LayerEntry = {
@@ -1515,11 +1516,7 @@ export class InteractionManager<
     if (isEmpty(extent)) {
       return;
     }
-    const padding = Array.isArray(expand.padding)
-      ? expand.padding
-      : expand.padding !== undefined
-        ? [expand.padding, expand.padding, expand.padding, expand.padding]
-        : undefined;
+    const padding = toOlPadding(expand.padding, undefined);
     view.fit(extent, {
       padding,
       duration,

@@ -123,7 +123,7 @@ export class MapFivePointsClusterComponent {
             },
             expandOnClick: {
               mode: 'zoomToExtent',
-              padding: [60, 60, 60, 60],
+              padding: {all: 120},
               maxZoom: 16,
               durationMs: 350,
             },

@@ -7,9 +7,12 @@ import type {ViewFitOptions, ViewFitPadding} from '../public/types';
 const DEFAULT_OL_PADDING: [number, number, number, number] = [64, 64, 64, 64];
 const DEFAULT_FIT_DURATION = 500;
 
-function toOlPadding(p?: ViewFitPadding): [number, number, number, number] {
+export function toOlPadding(
+  p?: ViewFitPadding,
+  fallback: [number, number, number, number] | undefined = DEFAULT_OL_PADDING,
+): [number, number, number, number] | undefined {
   if (!p) {
-    return DEFAULT_OL_PADDING;
+    return fallback;
   }
 
   if ('all' in p) {
@@ -25,7 +28,7 @@ function toOlPadding(p?: ViewFitPadding): [number, number, number, number] {
 }
 
 export function toOlFitOptions(opts?: ViewFitOptions) {
-  const padding = toOlPadding(opts?.padding);
+  const padding = toOlPadding(opts?.padding) ?? DEFAULT_OL_PADDING;
   const duration = opts?.duration ?? DEFAULT_FIT_DURATION;
 
   // OL View#fit options are a plain object; keep it minimal & typed-friendly
