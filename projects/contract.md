@@ -240,7 +240,11 @@ export type VectorLayerApi<M, G extends Geometry> = {
   mutate: (id: string | number, update: (prev: M) => M) => void;
   
   /** массовая мутация (опционально) */
-  mutateMany?: (ids: Array<string | number>, update: (prev: M) => M) => void;
+  mutateMany?: (
+    ids: Array<string | number>,
+    update: (prev: M) => M,
+    reason?: ModelChangeReason,
+  ) => void;
   
   /**
    * Кластеризация (доступна, если descriptor.clustering задан в schema)

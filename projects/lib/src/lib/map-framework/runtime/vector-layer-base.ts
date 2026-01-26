@@ -83,6 +83,35 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.emitModelChanges([{prev, next, reason}]);
   }
 
+  mutateMany(
+    ids: Array<string | number>,
+    update: (prev: M) => M,
+    reason: ModelChange<M>['reason'] = 'mutate',
+  ): void {
+    const changes: ModelChange<M>[] = [];
+
+    ids.forEach((id) => {
+      const prev = this.registry.getModel(id);
+      if (!prev) {
+        return;
+      }
+      const next = update(prev);
+      if (next === prev) {
+        return;
+      }
+      this.registry.updateModel(id, next);
+      this.syncFeatureFromModel(next);
+      changes.push({prev, next, reason});
+    });
+
+    if (changes.length === 0) {
+      return;
+    }
+
+    this.scheduleInvalidate();
+    this.emitModelChanges(changes);
+  }
+
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {
     this.changeHandlers.add(cb);
     return () => this.changeHandlers.delete(cb);
