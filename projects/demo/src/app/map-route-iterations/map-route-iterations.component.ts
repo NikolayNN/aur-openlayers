@@ -93,7 +93,7 @@ export class MapRouteIterationsComponent implements OnInit {
   orderedPoints: OrderedMapPoint[] = [];
   selectedPoint: OrderedMapPoint | null = null;
   selectedPointName = '';
-  dragging = false;
+  isDragging = false;
 
 
   private pointsOrder: string[] = BASE_POINTS.map((point) => point.id);
@@ -217,7 +217,7 @@ export class MapRouteIterationsComponent implements OnInit {
                 hitTolerance: 6,
                 onStart: () => {
                   this.zone.run(() => {
-                    this.dragging = true;
+                    this.isDragging = true;
                     this.syncFromLayer();
                   });
                   this.updateLineFromLayer();
@@ -232,7 +232,7 @@ export class MapRouteIterationsComponent implements OnInit {
                 },
                 onEnd: () => {
                   this.zone.run(() => {
-                    this.dragging = false;
+                    this.isDragging = false;
                     this.syncFromLayer();
                   });
                   this.updateLineFromLayer();
@@ -289,10 +289,6 @@ export class MapRouteIterationsComponent implements OnInit {
     this.pointLayerApi.mutate(this.selectedPoint.id, (prev) => prev.withName(value));
     this.selectedPointName = value;
     this.syncFromLayer();
-  }
-
-  get isDragging(): boolean {
-    return this.dragging;
   }
 
   private swapOrder(firstIndex: number, secondIndex: number): void {
