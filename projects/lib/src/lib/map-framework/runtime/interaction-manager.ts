@@ -463,7 +463,7 @@ export class InteractionManager<
       if (!hoverEnabled && !autoHover) {
         continue;
       }
-      const { items } = this.hitTest({
+      const hitResult = this.hitTest({
         layerId: entry.descriptor.id,
         layer: entry.layer,
         api: entry.api,
@@ -473,14 +473,14 @@ export class InteractionManager<
       });
 
       if (hoverEnabled) {
-        const handled = this.processHover(entry, hover!, items, event);
+        const handled = this.processHover(entry, hover!, hitResult.items, event);
         if (handled && this.shouldStopPropagation(hover!)) {
           break;
         }
       }
 
       if (autoHover && popupHost && !popupStopped) {
-        const collected = this.collectFeaturePopupItems(entry, items, event);
+        const collected = this.collectPopupItems(entry, hitResult, event);
         if (collected.length > 0) {
           popupItems.push(...collected);
           if (this.popupStack === 'stop') {
@@ -662,10 +662,8 @@ export class InteractionManager<
       if (interactions && this.hasCursorInteraction(interactions)) {
         needsPointerMove = true;
       }
-      const api = this.apis[descriptor.id];
       if (
         descriptor.clustering &&
-        api?.isClusteringEnabled?.() &&
         (descriptor.clustering.expandOnClick || descriptor.clustering.popup)
       ) {
         needsSingleClick = true;
