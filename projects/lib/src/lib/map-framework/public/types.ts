@@ -350,7 +350,7 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     /** opts -> Style | Style[] (+ view for LOD) */
     render: (opts: OPTS, view: StyleView) => Style | Style[];
     /** optional cache key */
-    cacheKey?: (opts: OPTS, view: StyleView) => string | object;
+    cacheKey?: (opts: OPTS, view: StyleView) => string;
     /** merge priority for states (if order matters) */
     statePriority?: FeatureStyleState[];
   };
@@ -609,7 +609,7 @@ export type LayerClustering<M> = {
    */
   clusterStyle: {
     render: (args: { models: M[]; size: number; view: StyleView }) => Style | Style[];
-    cacheKey?: (args: { models: M[]; size: number; view: StyleView }) => string | object;
+    cacheKey?: (args: { models: M[]; size: number; view: StyleView }) => string;
   };
   /**
    * Popup for cluster (configurable)
