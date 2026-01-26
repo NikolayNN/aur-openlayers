@@ -304,10 +304,6 @@ export class MapRouteIterationsComponent implements OnInit {
     }
   }
 
-  ngOnDestroy(): void {
-    this.unsubscribeModelsChanged?.();
-  }
-
   private clearSelectedPoint() {
     if (this.selectedPoint) {
       this.pointLayerApi?.setFeatureStates(this.selectedPoint.id, []);
@@ -319,5 +315,9 @@ export class MapRouteIterationsComponent implements OnInit {
     this.clearSelectedPoint();
     this.selectedPoint = point;
     this.pointLayerApi?.setFeatureStates(this.selectedPoint.id, ['SELECTED']);
+  }
+
+  ngOnDestroy(): void {
+    this.unsubscribeModelsChanged?.();
   }
 }
