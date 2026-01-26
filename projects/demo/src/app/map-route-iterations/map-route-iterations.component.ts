@@ -36,16 +36,6 @@ type MapLineStyleOptions = {
   width: number;
 };
 
-const POINT_IDS = [
-  'minsk-center',
-  'minsk-library',
-  'minsk-arena',
-  'minsk-tractors',
-  'minsk-station',
-];
-
-const BASE_POINTS = new MapPointGenerator().getByIds(POINT_IDS);
-
 class OrderedMapPoint extends MapPoint {
   constructor(
     id: string,
@@ -61,30 +51,19 @@ class OrderedMapPoint extends MapPoint {
   ) {
     super(id, name, lat, lng, district, address, details, status, schedule);
   }
+
+  public withLatLng(lng: number, lat: number): OrderedMapPoint{
+    return new OrderedMapPoint(this.id, this.name, lat, lng, this.district, this.address, this.details, this.status, this.schedule, this.orderIndex);
+  }
 }
 
 class MapLine {
-  public readonly id = 'route';
+  public readonly id = 'single-route-id';
 
   constructor(public readonly points: OrderedMapPoint[]) {}
 }
 
-const applyGeometryToOrderedMapPoint = (prev: OrderedMapPoint, geom: unknown): OrderedMapPoint => {
-  if (!(geom instanceof Point)) return prev;
-  const [lng, lat] = toLonLat(geom.getCoordinates());
-  return new OrderedMapPoint(
-    prev.id,
-    prev.name,
-    lat,
-    lng,
-    prev.district,
-    prev.address,
-    prev.details,
-    prev.status,
-    prev.schedule,
-    prev.orderIndex,
-  );
-};
+const BASE_POINTS = new MapPointGenerator().getByCount(5);
 
 @Component({
   selector: 'app-map-route-iterations',
@@ -103,7 +82,7 @@ export class MapRouteIterationsComponent implements OnDestroy, OnInit {
   dragging = false;
 
   private map?: Map;
-  private pointsOrder: string[] = [...POINT_IDS];
+  private pointsOrder: string[] = BASE_POINTS.map((point) => point.id);
   private resizeObserver?: ResizeObserver;
   private pointLayerApi?: VectorLayerApi<OrderedMapPoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
@@ -141,7 +120,11 @@ export class MapRouteIterationsComponent implements OnDestroy, OnInit {
             id: (model: OrderedMapPoint) => model.id,
             geometry: {
               fromModel: mapPointToGeometry,
-              applyGeometryToModel: applyGeometryToOrderedMapPoint,
+              applyGeometryToModel: (prev, geom) => {
+                if (!(geom instanceof Point)) return prev;
+                const [lng, lat] = toLonLat(geom.getCoordinates());
+                return prev.withLatLng(lng, lat);
+              },
             },
             style: {
               base: (model: OrderedMapPoint) => ({

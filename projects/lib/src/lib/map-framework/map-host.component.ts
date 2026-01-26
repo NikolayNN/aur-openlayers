@@ -56,6 +56,8 @@ export class MapHostComponent implements AfterViewInit, OnDestroy {
   private ctx?: MapContext;
   private controllers: MapController[] = [];
 
+  private resizeObserver?: ResizeObserver;
+
   constructor(private readonly zone: NgZone) {}
 
   ngAfterViewInit(): void {
@@ -92,6 +94,13 @@ export class MapHostComponent implements AfterViewInit, OnDestroy {
     if (ctx) {
       this.zone.run(() => this.ready.emit(ctx!));
     }
+
+    setTimeout(() => this.map?.updateSize(), 0);
+
+    this.resizeObserver = new ResizeObserver(() => {
+      this.map?.updateSize();
+    });
+    this.resizeObserver.observe(this.mapElement.nativeElement);
   }
 
   ngOnDestroy(): void {
