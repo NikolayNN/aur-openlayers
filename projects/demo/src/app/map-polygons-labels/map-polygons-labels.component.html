@@ -1,0 +1,8 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Карта с полигонами и подписями</h2>
+    <p>Три полигона с названиями, размещенными внутри каждой фигуры.</p>
+  </header>
+
+  <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+</section>

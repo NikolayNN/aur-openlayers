@@ -52,6 +52,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-polygons-labels',
+    loadComponent: () =>
+      import('./map-polygons-labels/map-polygons-labels.component').then(
+        (m) => m.MapPolygonsLabelsComponent,
+      ),
+  },
+  {
     path: 'map-route-iterations',
     loadComponent: () =>
       import('./map-route-iterations/map-route-iterations.component').then(
