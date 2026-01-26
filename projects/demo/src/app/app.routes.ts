@@ -63,4 +63,11 @@ export const routes: Routes = [
         (m) => m.MapPointChangeStyleComponent,
       ),
   },
+  {
+    path: 'map-point-zoom-labels',
+    loadComponent: () =>
+      import('./map-point-zoom-labels/map-point-zoom-labels.component').then(
+        (m) => m.MapPointZoomLabelsComponent,
+      ),
+  },
 ];
