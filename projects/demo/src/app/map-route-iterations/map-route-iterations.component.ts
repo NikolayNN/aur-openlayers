@@ -294,8 +294,7 @@ export class MapRouteIterationsComponent implements OnInit {
 
 
     if (this.selectedPoint) {
-      this.selectedPoint = this.pointLayerApi.getModelById(this.selectedPoint.id) ?? null;
-      this.selectedPointName = this.selectedPoint?.name ?? '';
+      this.selectPoint(this.selectedPoint);
     }
 
     if (this.lineLayerApi && this.orderedPoints.length) {
