@@ -72,7 +72,7 @@ const BASE_POINTS = new MapPointGenerator().getByCount(5);
   templateUrl: './map-route-iterations.component.html',
   styleUrl: './map-route-iterations.component.scss',
 })
-export class MapRouteIterationsComponent implements OnDestroy, OnInit {
+export class MapRouteIterationsComponent implements OnInit {
   @ViewChild('popupHost', {static: true}) popupHostElement!: ElementRef<HTMLDivElement>;
   @ViewChild('mapHost', {static: true, read: ElementRef}) mapHostElement!: ElementRef<HTMLElement>;
 
@@ -81,9 +81,8 @@ export class MapRouteIterationsComponent implements OnDestroy, OnInit {
   selectedPointName = '';
   dragging = false;
 
-  private map?: Map;
+
   private pointsOrder: string[] = BASE_POINTS.map((point) => point.id);
-  private resizeObserver?: ResizeObserver;
   private pointLayerApi?: VectorLayerApi<OrderedMapPoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
 
@@ -253,25 +252,13 @@ export class MapRouteIterationsComponent implements OnDestroy, OnInit {
     this.pointsOrder = this.orderedPoints.map((point) => point.id);
   }
 
-  ngOnDestroy(): void {
-    this.resizeObserver?.disconnect();
-    this.map = undefined;
-  }
-
   onReady(ctx: MapContext): void {
-    this.map = ctx.map;
     this.pointLayerApi = ctx.layers['points'] as VectorLayerApi<OrderedMapPoint, Geometry> | undefined;
     this.lineLayerApi = ctx.layers['route-line'] as VectorLayerApi<MapLine, LineString> | undefined;
 
     this.pointLayerApi?.setModels(this.orderedPoints);
     this.pointLayerApi?.centerOnAllModels({padding: {top: 48, right: 48, bottom: 48, left: 48}});
     this.updateLineFromLayer();
-    setTimeout(() => this.map?.updateSize(), 0);
-
-    this.resizeObserver = new ResizeObserver(() => {
-      this.map?.updateSize();
-    });
-    this.resizeObserver.observe(this.mapHostElement.nativeElement);
   }
 
   movePointUp(index: number): void {
