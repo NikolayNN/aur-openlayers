@@ -154,8 +154,8 @@ export class MapRouteIterationsComponent implements OnInit {
                 model,
                 className: 'popup-card',
                 content: (() => {
-                    const tpl = document.createElement('template');
-                    tpl.innerHTML = `
+                  const tpl = document.createElement('template');
+                  tpl.innerHTML = `
                         <div class="popup-content">
                             <h3>${escapeHtml(model.name)}</h3>
                             <p><strong>Точка №${escapeHtml(String(model.orderIndex))}</strong></p>
@@ -184,8 +184,7 @@ export class MapRouteIterationsComponent implements OnInit {
                 },
                 onClear: () => {
                   this.zone.run(() => {
-                    this.selectedPoint = null;
-                    this.selectedPointName = '';
+                    this.clearSelectedPoint()
                   });
                   return true;
                 },
@@ -193,8 +192,13 @@ export class MapRouteIterationsComponent implements OnInit {
               translate: {
                 cursor: 'grab',
                 hitTolerance: 6,
-                onStart: () => (this.zone.run(() => (this.isDragging = true))),
-                onEnd: () => (this.zone.run(() => (this.isDragging = false))),
+                onStart: (point) => {
+                  this.zone.run(() => (this.isDragging = true))
+                  this.selectPoint(point.item.model);
+                },
+                onEnd: () => {
+                  this.zone.run(() => (this.isDragging = false));
+                },
               },
             },
           },
@@ -231,6 +235,7 @@ export class MapRouteIterationsComponent implements OnInit {
     this.pointLayerApi.centerOnAllModels();
 
     this.unsubscribeModelsChanged = this.pointLayerApi.onModelsChanged?.(() => {
+      // перестраиваем все модели и слои при любом изменении можно оптимизировать использовать модель  ModelChange[] и  смотреть что изменилось и точечно обновлять
       this.zone.run(() => this.rebuildFromLayer());
     });
 
@@ -240,11 +245,13 @@ export class MapRouteIterationsComponent implements OnInit {
 
   movePointUp(index: number): void {
     if (index <= 0) return;
+    this.selectPoint(this.orderedPoints[index - 1]);
     this.swapOrder(index, index - 1);
   }
 
   movePointDown(index: number): void {
     if (index >= this.pointsOrder.length - 1) return;
+    this.selectPoint(this.orderedPoints[index - 1]);
     this.swapOrder(index, index + 1);
   }
 
@@ -299,5 +306,18 @@ export class MapRouteIterationsComponent implements OnInit {
 
   ngOnDestroy(): void {
     this.unsubscribeModelsChanged?.();
+  }
+
+  private clearSelectedPoint() {
+    if (this.selectedPoint) {
+      this.pointLayerApi?.setFeatureStates(this.selectedPoint.id, []);
+    }
+  }
+
+  protected selectPoint(point: MapPoint & { orderIndex: number }) {
+    if (!this.pointLayerApi) return;
+    this.clearSelectedPoint();
+    this.selectedPoint = point;
+    this.pointLayerApi?.setFeatureStates(this.selectedPoint.id, ['SELECTED']);
   }
 }

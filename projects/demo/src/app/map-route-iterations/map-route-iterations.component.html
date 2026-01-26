@@ -51,6 +51,7 @@
         <ul class="order-list">
           <li *ngFor="let point of orderedPoints; let i = index"
               class="order-list__item"
+              (click)="selectPoint(point)"
               [class.is-selected]="point.id === selectedPoint?.id"
           >
             <span class="order-list__index">{{ point.orderIndex }}</span>
