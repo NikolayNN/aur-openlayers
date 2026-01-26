@@ -8,18 +8,9 @@ import Stroke from 'ol/style/Stroke';
 import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
-import {
-  MapContext,
-  VectorLayerApi,
-  VectorLayerDescriptor,
-} from '../../../../lib/src/lib/map-framework';
+import {MapContext, VectorLayerApi, VectorLayerDescriptor,} from '../../../../lib/src/lib/map-framework';
 import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
-import {
-  applyGeometryToMapPoint,
-  mapPointToGeometry,
-  MapPoint,
-  MapPointGenerator,
-} from '../shared/map-point';
+import {applyGeometryToMapPoint, MapPoint, MapPointGenerator, mapPointToGeometry,} from '../shared/map-point';
 
 const LAYER_ID = {
   POINTS: 'points',
@@ -41,7 +32,8 @@ type MapLineStyleOptions = {
 class MapLine {
   public readonly id = 'line-1';
 
-  constructor(public readonly points: MapPoint[]) {}
+  constructor(public readonly points: MapPoint[]) {
+  }
 }
 
 const POINTS = new MapPointGenerator().getByCount(5);
@@ -128,30 +120,16 @@ export class MapLineDragPointsComponent {
                 cursor: 'grab',
                 hitTolerance: 6,
                 state: 'DRAG',
-                onStart: ({item, ctx}) => {
+                onStart: () => {
                   this.zone.run(() => {
                     this.dragging = true;
-                    this.activePointId = String(item.model.id);
-                    this.syncActivePoint(ctx);
                   });
-                  this.updateLineFromPoints();
                   return true;
                 },
-                onChange: ({item, ctx}) => {
-                  this.zone.run(() => {
-                    this.activePointId = String(item.model.id);
-                    this.syncActivePoint(ctx);
-                  });
-                  this.updateLineFromPoints();
-                  return true;
-                },
-                onEnd: ({item, ctx}) => {
+                onEnd: () => {
                   this.zone.run(() => {
                     this.dragging = false;
-                    this.activePointId = String(item.model.id);
-                    this.syncActivePoint(ctx);
                   });
-                  this.updateLineFromPoints();
                   return true;
                 },
               },
@@ -172,26 +150,35 @@ export class MapLineDragPointsComponent {
   private pointLayerApi?: VectorLayerApi<MapPoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
 
-  constructor(private readonly zone: NgZone) {}
+  private unsubscribeModelsChanged?: () => void;
+
+  constructor(private readonly zone: NgZone) {
+  }
 
   onReady(ctx: MapContext): void {
     this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<MapPoint, Geometry> | undefined;
     this.lineLayerApi = ctx.layers[LAYER_ID.LINE] as VectorLayerApi<MapLine, LineString> | undefined;
 
     this.pointLayerApi?.setModels(POINTS);
-    this.pointLayerApi?.centerOnAllModels({
-      padding: {top: 40, right: 40, bottom: 40, left: 40},
+    this.pointLayerApi?.centerOnAllModels();
+
+    this.unsubscribeModelsChanged = this.pointLayerApi?.onModelsChanged?.((m) => {
+      m.forEach(change => {
+        this.activePointId = String(change.next.id);
+      })
+
+      this.syncActivePoint();
+      this.updateLineFromPoints();
     });
     this.updateLineFromPoints();
   }
 
-  private syncActivePoint(ctx: {layers: Record<string, VectorLayerApi<MapPoint, Geometry>>}): void {
+  private syncActivePoint(): void {
     if (!this.activePointId) {
       this.activePoint = null;
       return;
     }
-    const layer = ctx.layers[LAYER_ID.POINTS];
-    this.activePoint = layer?.getModelById(this.activePointId) ?? null;
+    this.activePoint = this.pointLayerApi?.getModelById(this.activePointId) ?? null;
   }
 
   private updateLineFromPoints(): void {
