@@ -1,7 +1,6 @@
-import {Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
-import type Map from 'ol/Map';
 import type Geometry from 'ol/geom/Geometry';
 import {fromLonLat, toLonLat} from 'ol/proj';
 import CircleStyle from 'ol/style/Circle';
@@ -18,11 +17,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import {escapeHtml} from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
-import {
-  MapPoint,
-  MapPointGenerator,
-  mapPointToGeometry,
-} from '../shared/map-point';
+import {MapPoint, MapPointGenerator, mapPointToGeometry,} from '../shared/map-point';
 
 type PointStyleOptions = {
   color: string;
@@ -52,18 +47,37 @@ class OrderedMapPoint extends MapPoint {
     super(id, name, lat, lng, district, address, details, status, schedule);
   }
 
-  public withLatLng(lng: number, lat: number): OrderedMapPoint{
+  public withLatLng(lng: number, lat: number): OrderedMapPoint {
     return new OrderedMapPoint(this.id, this.name, lat, lng, this.district, this.address, this.details, this.status, this.schedule, this.orderIndex);
+  }
+
+  public withOrderIndex(index: number): OrderedMapPoint {
+    return new OrderedMapPoint(this.id, this.name, this.lat, this.lng, this.district, this.address, this.details, this.status, this.schedule, index);
+  }
+
+  public withName(name: string): OrderedMapPoint {
+    return new OrderedMapPoint(this.id, name, this.lat, this.lng, this.district, this.address, this.details, this.status, this.schedule, this.orderIndex);
+  }
+
+
+  public static toOrdered(point: MapPoint, index: number): OrderedMapPoint {
+    return new OrderedMapPoint(point.id, point.name, point.lat, point.lng, point.district, point.address, point.details, point.status, point.schedule, index);
   }
 }
 
 class MapLine {
   public readonly id = 'single-route-id';
 
-  constructor(public readonly points: OrderedMapPoint[]) {}
+  constructor(public readonly points: OrderedMapPoint[]) {
+  }
 }
 
 const BASE_POINTS = new MapPointGenerator().getByCount(5);
+
+const LAYER_ID = {
+  ROUTE_LINE: 'route-line',
+  POINTS: 'points',
+} as const;
 
 @Component({
   selector: 'app-map-route-iterations',
@@ -90,7 +104,7 @@ export class MapRouteIterationsComponent implements OnInit {
     schema: {
       layers: [
         {
-          id: 'route-line',
+          id: LAYER_ID.ROUTE_LINE,
           feature: {
             id: (model: MapLine) => model.id,
             geometry: {
@@ -243,21 +257,20 @@ export class MapRouteIterationsComponent implements OnInit {
     osm: true,
   };
 
-  constructor(private readonly zone: NgZone) {}
+  constructor(private readonly zone: NgZone) {
+  }
 
   ngOnInit(): void {
-    this.orderedPoints = BASE_POINTS.map((point, index) =>
-      this.createOrderedPoint(point, index + 1),
-    );
+    this.orderedPoints = BASE_POINTS.map((point, index) => OrderedMapPoint.toOrdered(point, index + 1));
     this.pointsOrder = this.orderedPoints.map((point) => point.id);
   }
 
   onReady(ctx: MapContext): void {
-    this.pointLayerApi = ctx.layers['points'] as VectorLayerApi<OrderedMapPoint, Geometry> | undefined;
-    this.lineLayerApi = ctx.layers['route-line'] as VectorLayerApi<MapLine, LineString> | undefined;
+    this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<OrderedMapPoint, Geometry>;
+    this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<MapLine, LineString>;
 
-    this.pointLayerApi?.setModels(this.orderedPoints);
-    this.pointLayerApi?.centerOnAllModels({padding: {top: 48, right: 48, bottom: 48, left: 48}});
+    this.pointLayerApi.setModels(this.orderedPoints);
+    this.pointLayerApi.centerOnAllModels({padding: {top: 48, right: 48, bottom: 48, left: 48}});
     this.updateLineFromLayer();
   }
 
@@ -273,11 +286,8 @@ export class MapRouteIterationsComponent implements OnInit {
 
   onSelectedPointNameChange(value: string): void {
     if (!this.selectedPoint || !this.pointLayerApi) return;
-    const trimmed = value.trim();
-    const updated = this.updateOrderedPoint(this.selectedPoint, {name: trimmed || this.selectedPoint.name});
-    this.pointLayerApi.mutate(updated.id, () => updated);
-    this.selectedPoint = updated;
-    this.selectedPointName = updated.name;
+    this.pointLayerApi.mutate(this.selectedPoint.id, (prev) => prev.withName(value));
+    this.selectedPointName = value;
     this.syncFromLayer();
   }
 
@@ -306,7 +316,7 @@ export class MapRouteIterationsComponent implements OnInit {
     this.pointsOrder.forEach((id, index) => {
       const model = this.pointLayerApi?.getModelById(id) as OrderedMapPoint | undefined;
       if (!model || model.orderIndex === index + 1) return;
-      this.pointLayerApi?.mutate(id, () => this.updateOrderedPoint(model, {orderIndex: index + 1}));
+      this.pointLayerApi?.mutate(id, (prev) => prev.withOrderIndex(index + 1));
     });
   }
 
@@ -329,39 +339,6 @@ export class MapRouteIterationsComponent implements OnInit {
 
     if (!points.length) return;
     this.lineLayerApi?.setModels([new MapLine(points)]);
-  }
-
-  private createOrderedPoint(point: MapPoint, orderIndex: number): OrderedMapPoint {
-    return new OrderedMapPoint(
-      point.id,
-      point.name,
-      point.lat,
-      point.lng,
-      point.district,
-      point.address,
-      point.details,
-      point.status,
-      point.schedule,
-      orderIndex,
-    );
-  }
-
-  private updateOrderedPoint(
-    prev: OrderedMapPoint,
-    updates: Partial<{name: string; lat: number; lng: number; orderIndex: number}>,
-  ): OrderedMapPoint {
-    return new OrderedMapPoint(
-      prev.id,
-      updates.name ?? prev.name,
-      updates.lat ?? prev.lat,
-      updates.lng ?? prev.lng,
-      prev.district,
-      prev.address,
-      prev.details,
-      prev.status,
-      prev.schedule,
-      updates.orderIndex ?? prev.orderIndex,
-    );
   }
 
   private buildPopupContent(model: OrderedMapPoint): HTMLElement {
