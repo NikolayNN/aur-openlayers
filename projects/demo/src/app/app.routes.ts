@@ -38,6 +38,13 @@ export const routes: Routes = [
       import('./simple-map-two-static-layers/simple-map-two-static-layers.component').then((m) => m.SimpleMapTwoStaticLayersComponent),
   },
   {
+    path: 'map-five-points-cluster',
+    loadComponent: () =>
+      import('./map-five-points-cluster/map-five-points-cluster.component').then(
+        (m) => m.MapFivePointsClusterComponent,
+      ),
+  },
+  {
     path: 'map-line-drag-points',
     loadComponent: () =>
       import('./map-line-drag-points/map-line-drag-points.component').then(
