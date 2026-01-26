@@ -49,7 +49,10 @@
         <h3>Порядок точек</h3>
         <p class="map-panel__hint">Используйте стрелки, чтобы менять последовательность маршрута.</p>
         <ul class="order-list">
-          <li *ngFor="let point of orderedPoints; let i = index" class="order-list__item">
+          <li *ngFor="let point of orderedPoints; let i = index"
+              class="order-list__item"
+              [class.is-selected]="point.id === selectedPoint?.id"
+          >
             <span class="order-list__index">{{ point.orderIndex }}</span>
             <span class="order-list__name">{{ point.name }}</span>
             <div class="order-list__actions">
