@@ -1,11 +1,10 @@
 import {Component} from '@angular/core';
 import {
   MapContext,
-  MapHostComponent,
-  MapHostConfig,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
+import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
 import type Geometry from 'ol/geom/Geometry';
 import {fromLonLat} from 'ol/proj';
 import Point from 'ol/geom/Point';

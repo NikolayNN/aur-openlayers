@@ -7,10 +7,9 @@ import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {
   MapContext,
-  MapHostComponent,
-  MapHostConfig,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
+import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
 import {escapeHtml} from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
 import {
   applyGeometryToMapPoint,

@@ -7,11 +7,10 @@ import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import {
   MapContext,
-  MapHostComponent,
-  MapHostConfig,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
+import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
 import {applyGeometryToMapPoint, mapPointToGeometry, MapPoint} from '../shared/map-point';
 
 type PointStyleOptions = {

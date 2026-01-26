@@ -15,8 +15,13 @@ import View from 'ol/View';
 import { fromLonLat } from 'ol/proj';
 import OSM from 'ol/source/OSM';
 
-import { LayerManager } from './runtime/layer-manager';
-import type { MapContext, MapController, MapSchema, VectorLayerDescriptor } from './public/types';
+import {
+  LayerManager,
+  MapContext,
+  MapController,
+  MapSchema,
+  VectorLayerDescriptor,
+} from '../../../../../lib/src/lib/map-framework';
 
 export type MapHostViewConfig = {
   centerLonLat: [number, number];

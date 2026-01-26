@@ -10,11 +10,10 @@ import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
 import {
   MapContext,
-  MapHostComponent,
-  MapHostConfig,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
+import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
 import {
   applyGeometryToMapPoint,
   mapPointToGeometry,

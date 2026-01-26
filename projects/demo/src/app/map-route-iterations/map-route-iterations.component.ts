@@ -11,11 +11,10 @@ import Text from 'ol/style/Text';
 import {LineString, Point} from 'ol/geom';
 import {
   MapContext,
-  MapHostComponent,
-  MapHostConfig,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
+import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
 import {escapeHtml} from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
 import {MapPoint, MapPointGenerator, mapPointToGeometry,} from '../shared/map-point';
 
