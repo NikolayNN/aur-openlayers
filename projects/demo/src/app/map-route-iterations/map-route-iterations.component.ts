@@ -31,46 +31,14 @@ type MapLineStyleOptions = {
   width: number;
 };
 
-class OrderedMapPoint extends MapPoint {
-  constructor(
-    id: string,
-    name: string,
-    lat: number,
-    lng: number,
-    district: string,
-    address: string,
-    details: string,
-    status: string,
-    schedule: string,
-    public readonly orderIndex: number,
-  ) {
-    super(id, name, lat, lng, district, address, details, status, schedule);
-  }
+type OrderedMapPoint = MapPoint & { orderIndex: number };
+type MapLine = { id: string; points: OrderedMapPoint[] };
 
-  public withLatLng(lng: number, lat: number): OrderedMapPoint {
-    return new OrderedMapPoint(this.id, this.name, lat, lng, this.district, this.address, this.details, this.status, this.schedule, this.orderIndex);
-  }
-
-  public withOrderIndex(index: number): OrderedMapPoint {
-    return new OrderedMapPoint(this.id, this.name, this.lat, this.lng, this.district, this.address, this.details, this.status, this.schedule, index);
-  }
-
-  public withName(name: string): OrderedMapPoint {
-    return new OrderedMapPoint(this.id, name, this.lat, this.lng, this.district, this.address, this.details, this.status, this.schedule, this.orderIndex);
-  }
-
-
-  public static toOrdered(point: MapPoint, index: number): OrderedMapPoint {
-    return new OrderedMapPoint(point.id, point.name, point.lat, point.lng, point.district, point.address, point.details, point.status, point.schedule, index);
-  }
-}
-
-class MapLine {
-  public readonly id = 'single-route-id';
-
-  constructor(public readonly points: OrderedMapPoint[]) {
-  }
-}
+const asOrdered = (p: MapPoint, orderIndex: number): OrderedMapPoint => ({...p, orderIndex});
+const patchPoint = (prev: OrderedMapPoint, patch: Partial<OrderedMapPoint>): OrderedMapPoint => ({
+  ...prev,
+  ...patch,
+});
 
 const BASE_POINTS = new MapPointGenerator().getByCount(5);
 
@@ -78,6 +46,8 @@ const LAYER_ID = {
   ROUTE_LINE: 'route-line',
   POINTS: 'points',
 } as const;
+
+const ROUTE_ID = 'single-route-id';
 
 @Component({
   selector: 'app-map-route-iterations',
@@ -95,28 +65,28 @@ export class MapRouteIterationsComponent implements OnInit {
   selectedPointName = '';
   isDragging = false;
 
+  private pointsOrder: string[] = BASE_POINTS.map((p) => p.id);
 
-  private pointsOrder: string[] = BASE_POINTS.map((point) => point.id);
   private pointLayerApi?: VectorLayerApi<OrderedMapPoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
+
+  private unsubscribeModelsChanged?: () => void;
 
   readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
     schema: {
       layers: [
+
         {
           id: LAYER_ID.ROUTE_LINE,
           feature: {
             id: (model: MapLine) => model.id,
             geometry: {
               fromModel: (model: MapLine) =>
-                new LineString(model.points.map((point) => fromLonLat([point.lng, point.lat]))),
+                new LineString(model.points.map((p) => fromLonLat([p.lng, p.lat]))),
               applyGeometryToModel: (prev: MapLine) => prev,
             },
             style: {
-              base: () => ({
-                color: '#38bdf8',
-                width: 4,
-              }),
+              base: () => ({color: '#38bdf8', width: 4}),
               render: (opts: MapLineStyleOptions) =>
                 new Style({
                   stroke: new Stroke({
@@ -127,8 +97,9 @@ export class MapRouteIterationsComponent implements OnInit {
             },
           },
         },
+
         {
-          id: 'points',
+          id: LAYER_ID.POINTS,
           feature: {
             id: (model: OrderedMapPoint) => model.id,
             geometry: {
@@ -136,7 +107,7 @@ export class MapRouteIterationsComponent implements OnInit {
               applyGeometryToModel: (prev, geom) => {
                 if (!(geom instanceof Point)) return prev;
                 const [lng, lat] = toLonLat(geom.getCoordinates());
-                return prev.withLatLng(lng, lat);
+                return patchPoint(prev, {lng, lat});
               },
             },
             style: {
@@ -147,14 +118,8 @@ export class MapRouteIterationsComponent implements OnInit {
                 nameLabel: model.name,
               }),
               states: {
-                SELECTED: () => ({
-                  color: '#f97316',
-                  radius: 14,
-                }),
-                DRAG: () => ({
-                  color: '#16a34a',
-                  radius: 14,
-                }),
+                SELECTED: () => ({color: '#f97316', radius: 14}),
+                DRAG: () => ({color: '#16a34a', radius: 14}),
               },
               render: (opts: PointStyleOptions) => [
                 new Style({
@@ -188,7 +153,20 @@ export class MapRouteIterationsComponent implements OnInit {
               item: ({model}) => ({
                 model,
                 className: 'popup-card',
-                content: this.buildPopupContent(model),
+                content: (() => {
+                    const tpl = document.createElement('template');
+                    tpl.innerHTML = `
+                        <div class="popup-content">
+                            <h3>${escapeHtml(model.name)}</h3>
+                            <p><strong>Точка №${escapeHtml(String(model.orderIndex))}</strong></p>
+                            <p>${escapeHtml(model.district)}</p>
+                            <p>${escapeHtml(model.address)}</p>
+                            <p>${escapeHtml(model.details)}</p>
+                            <p>${escapeHtml(model.status)}</p>
+                            <p>${escapeHtml(model.schedule)}</p>
+                        </div>`.trim();
+                  return tpl.content.firstElementChild as HTMLElement;
+                })(),
               }),
             },
             interactions: {
@@ -197,9 +175,9 @@ export class MapRouteIterationsComponent implements OnInit {
                 state: 'SELECTED',
                 hitTolerance: 6,
                 onSelect: ({items}) => {
+                  const model = items[0]?.model ?? null;
                   this.zone.run(() => {
-                    const model = items[0]?.model as OrderedMapPoint | undefined;
-                    this.selectedPoint = model ?? null;
+                    this.selectedPoint = model;
                     this.selectedPointName = model?.name ?? '';
                   });
                   return true;
@@ -215,29 +193,8 @@ export class MapRouteIterationsComponent implements OnInit {
               translate: {
                 cursor: 'grab',
                 hitTolerance: 6,
-                onStart: () => {
-                  this.zone.run(() => {
-                    this.isDragging = true;
-                    this.syncFromLayer();
-                  });
-                  this.updateLineLayer();
-                  return true;
-                },
-                onChange: () => {
-                  this.zone.run(() => {
-                    this.syncFromLayer();
-                  });
-                  this.updateLineLayer();
-                  return true;
-                },
-                onEnd: () => {
-                  this.zone.run(() => {
-                    this.isDragging = false;
-                    this.syncFromLayer();
-                  });
-                  this.updateLineLayer();
-                  return true;
-                },
+                onStart: () => (this.zone.run(() => (this.isDragging = true))),
+                onEnd: () => (this.zone.run(() => (this.isDragging = false))),
               },
             },
           },
@@ -261,10 +218,11 @@ export class MapRouteIterationsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.orderedPoints = BASE_POINTS.map((point, index) => OrderedMapPoint.toOrdered(point, index + 1));
-    this.pointsOrder = this.orderedPoints.map((point) => point.id);
+    this.orderedPoints = BASE_POINTS.map((p, i) => asOrdered(p, i + 1));
+    this.pointsOrder = this.orderedPoints.map((p) => p.id);
   }
 
+  // вызывется когда карта готова
   onReady(ctx: MapContext): void {
     this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<OrderedMapPoint, Geometry>;
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<MapLine, LineString>;
@@ -272,7 +230,12 @@ export class MapRouteIterationsComponent implements OnInit {
     this.pointLayerApi.setModels(this.orderedPoints);
     this.pointLayerApi.centerOnAllModels();
 
-    this.updateLineLayer();
+    this.unsubscribeModelsChanged = this.pointLayerApi.onModelsChanged?.(() => {
+      this.zone.run(() => this.rebuildFromLayer());
+    });
+
+    // первичная инициализация
+    this.rebuildFromLayer();
   }
 
   movePointUp(index: number): void {
@@ -285,75 +248,56 @@ export class MapRouteIterationsComponent implements OnInit {
     this.swapOrder(index, index + 1);
   }
 
-  onSelectedPointNameChange(value: string): void {
-    if (!this.selectedPoint || !this.pointLayerApi) return;
-    this.pointLayerApi.mutate(this.selectedPoint.id, (prev) => prev.withName(value));
-    this.selectedPointName = value;
-    this.syncFromLayer();
-  }
-
   private swapOrder(firstIndex: number, secondIndex: number): void {
     const updated = [...this.pointsOrder];
     [updated[firstIndex], updated[secondIndex]] = [updated[secondIndex], updated[firstIndex]];
     this.applyPointOrder(updated);
   }
 
-  private applyPointOrder(order: string[]): void {
-    if (order.length !== this.pointsOrder.length) return;
-    const normalized = Array.from(new Set(order));
-    if (normalized.length !== this.pointsOrder.length) return;
-    this.pointsOrder = [...normalized];
+  private applyPointOrder(newOrder: string[]): void {
+    this.pointsOrder = newOrder;
     this.updateOrderIndexes();
-    this.syncFromLayer();
-    this.updateLineLayer();
+    this.rebuildFromLayer();
   }
 
   private updateOrderIndexes(): void {
     if (!this.pointLayerApi) return;
+
     this.pointsOrder.forEach((id, index) => {
-      const model = this.pointLayerApi?.getModelById(id);
+      const model = this.pointLayerApi!.getModelById(id);
       if (!model || model.orderIndex === index + 1) return;
-      this.pointLayerApi?.mutate(id, (prev) => prev.withOrderIndex(index + 1));
+
+      this.pointLayerApi!.mutate(id, (prev) => patchPoint(prev, {orderIndex: index + 1}));
     });
   }
 
-  private syncFromLayer(): void {
+  onSelectedPointNameChange(value: string): void {
+    if (!this.selectedPoint || !this.pointLayerApi) return;
+
+    this.pointLayerApi.mutate(this.selectedPoint.id, (prev) => patchPoint(prev, {name: value}));
+
+    this.selectedPointName = value;
+  }
+
+  private rebuildFromLayer(): void {
     if (!this.pointLayerApi) return;
+
     this.orderedPoints = this.pointsOrder
-      .map((id) => this.pointLayerApi?.getModelById(id))
-      .filter((point): point is OrderedMapPoint => Boolean(point));
+      .map((id) => this.pointLayerApi!.getModelById(id))
+      .filter((p) => p !== undefined);
+
+
     if (this.selectedPoint) {
-      this.selectedPoint = this.pointLayerApi?.getModelById(this.selectedPoint.id) ?? null;
+      this.selectedPoint = this.pointLayerApi.getModelById(this.selectedPoint.id) ?? null;
       this.selectedPointName = this.selectedPoint?.name ?? '';
+    }
+
+    if (this.lineLayerApi && this.orderedPoints.length) {
+      this.lineLayerApi.setModels([{id: ROUTE_ID, points: this.orderedPoints}]);
     }
   }
 
-  private updateLineLayer(): void {
-    if (!this.pointLayerApi) return;
-    const points = this.pointsOrder
-      .map((id) => this.pointLayerApi?.getModelById(id))
-      .filter(point => point !== undefined);
-
-    if (!points.length) return;
-    this.lineLayerApi?.setModels([new MapLine(points)]);
+  ngOnDestroy(): void {
+    this.unsubscribeModelsChanged?.();
   }
-
-  private buildPopupContent(model: OrderedMapPoint): HTMLElement {
-    const tpl = document.createElement('template');
-
-    tpl.innerHTML = `
-      <div class="popup-content">
-        <h3>${escapeHtml(model.name)}</h3>
-        <p><strong>Точка №${escapeHtml(String(model.orderIndex))}</strong></p>
-        <p>${escapeHtml(model.district)}</p>
-        <p>${escapeHtml(model.address)}</p>
-        <p>${escapeHtml(model.details)}</p>
-        <p>${escapeHtml(model.status)}</p>
-        <p>${escapeHtml(model.schedule)}</p>
-      </div>
-    `;
-
-    return tpl.content.firstElementChild as HTMLElement;
-  }
-
 }
