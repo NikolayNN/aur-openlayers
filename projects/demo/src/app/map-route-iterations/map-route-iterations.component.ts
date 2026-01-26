@@ -220,14 +220,14 @@ export class MapRouteIterationsComponent implements OnInit {
                     this.isDragging = true;
                     this.syncFromLayer();
                   });
-                  this.updateLineFromLayer();
+                  this.updateLineLayer();
                   return true;
                 },
                 onChange: () => {
                   this.zone.run(() => {
                     this.syncFromLayer();
                   });
-                  this.updateLineFromLayer();
+                  this.updateLineLayer();
                   return true;
                 },
                 onEnd: () => {
@@ -235,7 +235,7 @@ export class MapRouteIterationsComponent implements OnInit {
                     this.isDragging = false;
                     this.syncFromLayer();
                   });
-                  this.updateLineFromLayer();
+                  this.updateLineLayer();
                   return true;
                 },
               },
@@ -270,8 +270,9 @@ export class MapRouteIterationsComponent implements OnInit {
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<MapLine, LineString>;
 
     this.pointLayerApi.setModels(this.orderedPoints);
-    this.pointLayerApi.centerOnAllModels({padding: {top: 48, right: 48, bottom: 48, left: 48}});
-    this.updateLineFromLayer();
+    this.pointLayerApi.centerOnAllModels();
+
+    this.updateLineLayer();
   }
 
   movePointUp(index: number): void {
@@ -304,13 +305,13 @@ export class MapRouteIterationsComponent implements OnInit {
     this.pointsOrder = [...normalized];
     this.updateOrderIndexes();
     this.syncFromLayer();
-    this.updateLineFromLayer();
+    this.updateLineLayer();
   }
 
   private updateOrderIndexes(): void {
     if (!this.pointLayerApi) return;
     this.pointsOrder.forEach((id, index) => {
-      const model = this.pointLayerApi?.getModelById(id) as OrderedMapPoint | undefined;
+      const model = this.pointLayerApi?.getModelById(id);
       if (!model || model.orderIndex === index + 1) return;
       this.pointLayerApi?.mutate(id, (prev) => prev.withOrderIndex(index + 1));
     });
@@ -327,11 +328,11 @@ export class MapRouteIterationsComponent implements OnInit {
     }
   }
 
-  private updateLineFromLayer(): void {
+  private updateLineLayer(): void {
     if (!this.pointLayerApi) return;
     const points = this.pointsOrder
       .map((id) => this.pointLayerApi?.getModelById(id))
-      .filter((point): point is OrderedMapPoint => Boolean(point));
+      .filter(point => point !== undefined);
 
     if (!points.length) return;
     this.lineLayerApi?.setModels([new MapLine(points)]);
