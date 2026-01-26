@@ -307,6 +307,7 @@ export class MapRouteIterationsComponent implements OnInit {
   private clearSelectedPoint() {
     if (this.selectedPoint) {
       this.pointLayerApi?.setFeatureStates(this.selectedPoint.id, []);
+      this.selectedPoint = null;
     }
   }
 
