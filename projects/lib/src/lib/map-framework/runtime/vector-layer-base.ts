@@ -8,6 +8,7 @@ import type {
   FeatureDescriptor,
   MapContext,
   ModelChange,
+  MutateOptions,
   VectorLayerApi,
   VectorLayerDescriptor,
   ViewFitOptions,
@@ -67,7 +68,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
   mutate(
     id: string | number,
     update: (prev: M) => M,
-    reason: ModelChange<M>['reason'] = 'mutate',
+    opts?: MutateOptions,
   ): void {
     const prev = this.registry.getModel(id);
     if (!prev) {
@@ -77,18 +78,22 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     if (next === prev) {
       return;
     }
+    const reason = opts?.reason ?? 'mutate';
     this.registry.updateModel(id, next);
     this.syncFeatureFromModel(next);
     this.scheduleInvalidate();
-    this.emitModelChanges([{prev, next, reason}]);
+    if (!opts?.silent) {
+      this.emitModelChanges([{prev, next, reason}]);
+    }
   }
 
   mutateMany(
     ids: Array<string | number>,
     update: (prev: M) => M,
-    reason: ModelChange<M>['reason'] = 'mutate',
+    opts?: MutateOptions,
   ): void {
     const changes: ModelChange<M>[] = [];
+    const reason = opts?.reason ?? 'mutate';
 
     ids.forEach((id) => {
       const prev = this.registry.getModel(id);
@@ -109,7 +114,9 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     }
 
     this.scheduleInvalidate();
-    this.emitModelChanges(changes);
+    if (!opts?.silent) {
+      this.emitModelChanges(changes);
+    }
   }
 
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {

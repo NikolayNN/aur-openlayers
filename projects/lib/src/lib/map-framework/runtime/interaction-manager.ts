@@ -730,7 +730,7 @@ export class InteractionManager<
           id,
           (prev) =>
             entry.descriptor.feature.geometry.applyGeometryToModel(prev, geometry as any),
-          'modify',
+          {reason: 'modify'},
         );
       });
     });
@@ -1049,7 +1049,7 @@ export class InteractionManager<
       entry.api.mutate(
         active.targetKey,
         (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, translated),
-        'translate',
+        {reason: 'translate'},
       ),
     );
 
@@ -1092,7 +1092,7 @@ export class InteractionManager<
       entry.api.mutate(
         active.targetKey,
         (prev) => entry.descriptor.feature.geometry.applyGeometryToModel(prev, nextGeometry),
-        'modify',
+        {reason: 'modify'},
       ),
     );
 

@@ -103,4 +103,34 @@ describe('PlainVectorLayer', () => {
     expect(invalidateCount).toBe(1);
     expect(changes).toBe(1);
   });
+
+  it('mutates models silently without notifications', () => {
+    const source = new VectorSource<Point>();
+    const layer = new VectorLayer({ source });
+    const ctx = createCtx();
+    let invalidateCount = 0;
+    const plainLayer = new PlainVectorLayer({
+      descriptor,
+      layer,
+      source,
+      ctx,
+      scheduleInvalidate: () => {
+        invalidateCount += 1;
+      },
+    });
+
+    const modelA: Model = { id: 'a', coords: [1, 2] };
+    plainLayer.setModels([modelA]);
+
+    let changes = 0;
+    plainLayer.onModelsChanged((batch) => {
+      changes += batch.length;
+    });
+
+    plainLayer.mutate('a', (prev) => ({ ...prev, coords: [5, 6] }), {silent: true});
+    const featureA = source.getFeatures()[0] as Feature<Point>;
+    expect((featureA.getGeometry() as Point).getCoordinates()).toEqual([5, 6]);
+    expect(invalidateCount).toBe(1);
+    expect(changes).toBe(0);
+  });
 });

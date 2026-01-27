@@ -154,6 +154,13 @@ export type ModelChange<M> = {
   reason: ModelChangeReason;
 };
 
+export type MutateOptions = {
+  /** Причина изменения (по умолчанию 'mutate'). */
+  reason?: ModelChangeReason;
+  /** Без оповещения подписчиков (по умолчанию false). */
+  silent?: boolean;
+};
+
 /**
  * Паддинги для операций fit/center.
  *
@@ -210,14 +217,14 @@ export type VectorLayerApi<M, G extends Geometry> = {
   mutate: (
     id: string | number,
     update: (prev: M) => M,
-    reason?: ModelChangeReason,
+    opts?: MutateOptions,
   ) => void;
 
   /** Массовая мутация (опционально). */
   mutateMany?: (
     ids: Array<string | number>,
     update: (prev: M) => M,
-    reason?: ModelChangeReason,
+    opts?: MutateOptions,
   ) => void;
 
   /**
