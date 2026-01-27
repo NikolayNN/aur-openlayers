@@ -269,12 +269,17 @@ export class MapRouteIterationsComponent implements OnInit {
   private updateOrderIndexes(): void {
     if (!this.pointLayerApi) return;
 
-    this.pointsOrder.forEach((id, index) => {
-      const model = this.pointLayerApi!.getModelById(id);
-      if (!model || model.orderIndex === index + 1) return;
+    const orderMap = new Map<string, number>();
+    this.pointsOrder.forEach((id, i) => orderMap.set(id, i + 1));
 
-      this.pointLayerApi!.mutate(id, (prev) => patchPoint(prev, {orderIndex: index + 1}));
-    });
+    this.pointLayerApi.mutateMany?.(
+      this.pointsOrder,
+      (prev) => {
+        const oi = orderMap.get(prev.id);
+        return oi && prev.orderIndex !== oi ? patchPoint(prev, {orderIndex: oi}) : prev;
+      },
+      { silent: true },
+    );
   }
 
   onSelectedPointNameChange(value: string): void {
