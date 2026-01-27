@@ -233,7 +233,6 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
     this.pointLayerApi.centerOnAllModels();
 
     this.unsubscribeModelsChanged = this.pointLayerApi.onModelsChanged?.(() => {
-      // перестраиваем все модели и слои при любом изменении можно оптимизировать использовать модель  ModelChange[] и  смотреть что изменилось и точечно обновлять
       this.zone.run(() => this.rebuildFromLayer());
     });
 
@@ -277,7 +276,6 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
         const oi = orderMap.get(prev.id);
         return oi && prev.orderIndex !== oi ? patchPoint(prev, {orderIndex: oi}) : prev;
       },
-      { silent: true },
     );
   }
 
