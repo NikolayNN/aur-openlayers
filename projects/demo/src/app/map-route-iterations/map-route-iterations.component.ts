@@ -1,4 +1,4 @@
-import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import type Geometry from 'ol/geom/Geometry';
@@ -55,7 +55,7 @@ const ROUTE_ID = 'single-route-id';
   templateUrl: './map-route-iterations.component.html',
   styleUrl: './map-route-iterations.component.scss',
 })
-export class MapRouteIterationsComponent implements OnInit {
+export class MapRouteIterationsComponent implements OnInit, OnDestroy {
   @ViewChild('popupHost', {static: true}) popupHostElement!: ElementRef<HTMLDivElement>;
   @ViewChild('mapHost', {static: true, read: ElementRef}) mapHostElement!: ElementRef<HTMLElement>;
 
@@ -74,7 +74,6 @@ export class MapRouteIterationsComponent implements OnInit {
   readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> = {
     schema: {
       layers: [
-
         {
           id: LAYER_ID.ROUTE_LINE,
           feature: {
