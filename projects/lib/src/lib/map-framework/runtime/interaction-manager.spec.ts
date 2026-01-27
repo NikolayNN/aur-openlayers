@@ -43,7 +43,6 @@ const createApi = (
   return {
     setModels: () => undefined,
     invalidate: () => undefined,
-    syncFeatureFromModel: () => undefined,
     getModelByFeature: (feature) => feature.get('model') as Model,
     mutate: (_id, _update, _reason) => undefined,
     centerOnModel: () => undefined,

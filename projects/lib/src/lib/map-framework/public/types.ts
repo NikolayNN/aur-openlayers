@@ -206,8 +206,6 @@ export type VectorLayerApi<M, G extends Geometry> = {
   setModels: (models: readonly M[]) => void;
   /** Запросить пересчёт слоя/стилей. */
   invalidate: () => void;
-  /** Синхронизировать модель в фичу при внешнем изменении модели. */
-  syncFeatureFromModel: (model: M) => void;
   /** Найти модель по фиче слоя. */
   getModelByFeature: (feature: Feature<G>) => M | undefined;
   /**

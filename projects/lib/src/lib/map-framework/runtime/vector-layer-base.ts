@@ -52,7 +52,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.scheduleInvalidate();
   }
 
-  syncFeatureFromModel(model: M): void {
+  protected syncFeatureFromModel(model: M): void {
     const id = this.descriptor.id(model);
     const feature = this.registry.getFeature(id);
     if (!feature) {
