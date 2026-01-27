@@ -59,6 +59,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-polygons-modify',
+    loadComponent: () =>
+      import('./map-polygons-modify/map-polygons-modify.component').then(
+        (m) => m.MapPolygonsModifyComponent,
+      ),
+  },
+  {
     path: 'map-route-iterations',
     loadComponent: () =>
       import('./map-route-iterations/map-route-iterations.component').then(

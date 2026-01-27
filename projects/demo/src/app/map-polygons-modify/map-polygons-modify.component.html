@@ -1,0 +1,48 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Редактирование полигонов</h2>
+    <p>
+      На карте показаны три полигона с подписями. Перемещайте вершины, чтобы изменить форму
+      полигонов и сразу увидеть обновленные координаты.
+    </p>
+  </header>
+
+  <div class="map-layout">
+    <aside class="map-info">
+      <div class="map-info__header">
+        <h3>Координаты вершин</h3>
+        <span class="map-info__status" [class.is-active]="isModifying">
+          {{ isModifying ? 'редактирование…' : 'ожидание' }}
+        </span>
+      </div>
+
+      <p class="map-info__hint">
+        Выберите вершину полигона и перетащите её. Подписи остаются внутри фигур,
+        а список ниже показывает актуальные координаты.
+      </p>
+
+      <p class="map-info__active" *ngIf="activePolygonName">
+        Активный полигон: <strong>{{ activePolygonName }}</strong>
+      </p>
+
+      <div class="polygon-list">
+        <article class="polygon-card" *ngFor="let polygon of polygons; trackBy: trackByPolygonId">
+          <header class="polygon-card__header">
+            <span class="polygon-card__color" [style.background]="polygon.color"></span>
+            <h4>{{ polygon.name }}</h4>
+          </header>
+          <ol class="polygon-vertices">
+            <li *ngFor="let vertex of getVerticesForDisplay(polygon); let index = index">
+              <span>#{{ index + 1 }}</span>
+              <span>
+                lat {{ vertex[1] | number : '1.4-4' }}, lng {{ vertex[0] | number : '1.4-4' }}
+              </span>
+            </li>
+          </ol>
+        </article>
+      </div>
+    </aside>
+
+    <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+  </div>
+</section>

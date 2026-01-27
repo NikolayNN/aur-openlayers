@@ -5,6 +5,7 @@ import type OlMap from 'ol/Map';
 import type VectorLayer from 'ol/layer/Vector';
 import Collection from 'ol/Collection';
 import DragPan from 'ol/interaction/DragPan';
+import Modify from 'ol/interaction/Modify';
 import type { ModifyEvent } from 'ol/interaction/Modify';
 import type { TranslateEvent } from 'ol/interaction/Translate';
 import ClusterSource from 'ol/source/Cluster';
@@ -78,6 +79,15 @@ type ActiveModify = {
   lastHandled?: boolean;
 };
 
+type NativeModifyEntry = {
+  interaction: Modify;
+  keys: EventsKey[];
+};
+
+type ModifyInteraction = NonNullable<
+  NonNullable<LayerEntry['descriptor']['feature']['interactions']>['modify']
+>;
+
 export type HitTestArgs = {
   layerId: string;
   layer: VectorLayer;
@@ -124,6 +134,7 @@ export class InteractionManager<
   private readonly selectedItems = new Map<string, Map<string | number, HitItem<any, any>>>();
   private readonly activeTranslates = new Map<string, ActiveTranslate>();
   private readonly activeModifies = new Map<string, ActiveModify>();
+  private readonly nativeModifies = new Map<string, NativeModifyEntry>();
   private readonly popupStack: 'stop' | 'continue';
   private readonly listenerKeys = new Map<ListenerName, EventsKey>();
   private readonly enabledState = new Map<string, InteractionEnabledState>();
@@ -162,6 +173,7 @@ export class InteractionManager<
       });
     });
 
+    this.syncNativeModify(nextState);
     this.applyDisabledCleanup(nextState);
     this.enabledState.clear();
     nextState.forEach((value, key) => this.enabledState.set(key, value));
@@ -237,64 +249,6 @@ export class InteractionManager<
 
       if (this.activeTranslates.has(entry.descriptor.id)) {
         continue;
-      }
-
-      const modify = interactions?.modify;
-      if (!modify || !this.isEnabled(modify.enabled)) {
-        continue;
-      }
-
-      const { items: candidates } = this.hitTest({
-        layerId: entry.descriptor.id,
-        layer: entry.layer,
-        api: entry.api,
-        descriptor: entry.descriptor,
-        event,
-        hitTolerance: this.getHitTolerance(modify.hitTolerance),
-      });
-
-      if (candidates.length === 0) {
-        continue;
-      }
-
-      const modifyEvent = this.createModifyEvent(event, 'modifystart', candidates);
-
-      let target: HitItem<any, any> | null | undefined;
-      if (modify.pickTarget) {
-        target = modify.pickTarget({ candidates, ctx: this.ctx, event: modifyEvent });
-        if (!target) {
-          continue;
-        }
-      } else {
-        target = candidates[0];
-      }
-
-      const targetKey = entry.descriptor.feature.id(target.model);
-      const resolved = this.resolveTarget(entry, targetKey);
-      if (!resolved) {
-        continue;
-      }
-
-      const active: ActiveModify = {
-        targetKey,
-        lastItem: resolved,
-        moveThrottleMs: modify.moveThrottleMs ?? 0,
-        modify,
-      };
-      this.activeModifies.set(entry.descriptor.id, active);
-      this.lockDragPan();
-
-      if (modify.state) {
-        this.applyState([resolved], modify.state, true);
-      }
-
-      const handled = modify.onStart
-        ? this.isHandled(modify.onStart({ item: resolved, ctx: this.ctx, event: modifyEvent }))
-        : false;
-      active.lastHandled = handled;
-
-      if (handled && this.shouldStopPropagation(modify)) {
-        break;
       }
     }
 
@@ -679,6 +633,129 @@ export class InteractionManager<
     this.toggleListener('pointerdown', needsPointerDown, (event) => this.handlePointerDown(event));
     this.toggleListener('pointerdrag', needsPointerDrag, (event) => this.handlePointerDrag(event));
     this.toggleListener('pointerup', needsPointerUp, (event) => this.handlePointerUp(event));
+  }
+
+  private syncNativeModify(nextState: Map<string, InteractionEnabledState>): void {
+    const handled = new Set<string>();
+
+    this.schema.layers.forEach((descriptor) => {
+      const interactions = descriptor.feature.interactions;
+      const modify = interactions?.modify;
+      const enabled = nextState.get(descriptor.id)?.modify ?? false;
+      const shouldEnable = !!modify && enabled;
+      if (!shouldEnable) {
+        return;
+      }
+      const entry = this.getLayerEntry(descriptor.id);
+      if (!entry) {
+        return;
+      }
+      handled.add(descriptor.id);
+      if (this.nativeModifies.has(descriptor.id)) {
+        this.nativeModifies.get(descriptor.id)!.interaction.setActive(true);
+        return;
+      }
+      const source = entry.layer.getSource() as VectorSource<Geometry> | null;
+      if (!source) {
+        return;
+      }
+      const interaction = new Modify({
+        source,
+        pixelTolerance: this.getHitTolerance(modify.hitTolerance),
+        style: modify.vertexStyle,
+      });
+      const keys = [
+        interaction.on('modifystart', (event) =>
+          this.handleNativeModifyStart(entry, modify, event),
+        ),
+        interaction.on('modifyend', (event) =>
+          this.handleNativeModifyEnd(entry, modify, event),
+        ),
+      ];
+      this.map.addInteraction(interaction);
+      this.nativeModifies.set(descriptor.id, { interaction, keys });
+    });
+
+    Array.from(this.nativeModifies.keys()).forEach((layerId) => {
+      if (!handled.has(layerId)) {
+        this.teardownNativeModify(layerId);
+      }
+    });
+  }
+
+  private teardownNativeModify(layerId: string): void {
+    const entry = this.nativeModifies.get(layerId);
+    if (!entry) {
+      return;
+    }
+    entry.keys.forEach((key) => Observable.unByKey(key));
+    this.map.removeInteraction(entry.interaction);
+    this.nativeModifies.delete(layerId);
+  }
+
+  private handleNativeModifyStart(
+    entry: LayerEntry,
+    modify: ModifyInteraction,
+    event: ModifyEvent,
+  ): void {
+    const items = this.resolveHitItemsFromFeatures(entry, event.features);
+    if (items.length === 0) {
+      return;
+    }
+    if (modify.state) {
+      this.applyState(items, modify.state, true);
+    }
+    if (modify.onStart) {
+      this.isHandled(modify.onStart({ item: items[0], ctx: this.ctx, event }));
+    }
+  }
+
+  private handleNativeModifyEnd(
+    entry: LayerEntry,
+    modify: ModifyInteraction,
+    event: ModifyEvent,
+  ): void {
+    const items = this.resolveHitItemsFromFeatures(entry, event.features);
+    if (items.length === 0) {
+      return;
+    }
+    this.runInteractionMutation(() => {
+      items.forEach((item) => {
+        const geometry = item.feature.getGeometry();
+        if (!geometry) {
+          return;
+        }
+        const id = entry.descriptor.feature.id(item.model);
+        entry.api.mutate(
+          id,
+          (prev) =>
+            entry.descriptor.feature.geometry.applyGeometryToModel(prev, geometry as any),
+          'modify',
+        );
+      });
+    });
+    if (modify.onEnd) {
+      this.isHandled(modify.onEnd({ item: items[0], ctx: this.ctx, event }));
+    }
+    if (modify.state) {
+      this.applyState(items, modify.state, false);
+    }
+  }
+
+  private resolveHitItemsFromFeatures(
+    entry: LayerEntry,
+    features: Collection<Feature<Geometry>>,
+  ): Array<HitItem<any, any>> {
+    return features
+      .getArray()
+      .map((feature) => {
+        const model = entry.api.getModelByFeature(feature as Feature<any>);
+        if (!model) {
+          return null;
+        }
+        return { model, feature } as HitItem<any, any>;
+      })
+      .filter((item): item is HitItem<any, any> => item !== null);
   }
 
   private hasCursorInteraction(

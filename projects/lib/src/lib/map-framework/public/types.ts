@@ -536,6 +536,8 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
       hitTolerance?: number;
       /** Ограничение частоты обновлений при редактировании (мс). */
       moveThrottleMs?: number;
+      /** Стиль хэндлов вершин нативного Modify. */
+      vertexStyle?: Style | Style[];
       /**
        * Выбор цели из списка кандидатов на старте.
        */
