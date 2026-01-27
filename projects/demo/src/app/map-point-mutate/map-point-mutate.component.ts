@@ -88,44 +88,32 @@ export class MapPointMutateComponent {
   }
 
   updatePoint(id: string, field: 'name' | 'lat' | 'lng', value: string | number): void {
-    const index = POINTS.findIndex((p) => p.id === id);
-    if (index === -1) return;
+    this.pointLayerApi?.mutate(id, (prev) => {
+      if (!prev) return prev;
 
-    const current = POINTS[index];
+      if (field === 'name') {
+        return new MapPoint(
+          prev.id,
+          String(value),
+          prev.lat,
+          prev.lng,
+          prev.district, prev.address, prev.details, prev.status, prev.schedule,
+        );
+      }
 
-    // 1) Собираем updates
-    const updates =
-      field === 'name'
-        ? { name: String(value) }
-        : (() => {
-          const num = typeof value === 'number' ? value : Number(value);
-          return Number.isFinite(num) ? { [field]: num } : null;
-        })();
+      const num = typeof value === 'number' ? value : Number(value);
+      if (!Number.isFinite(num)) return prev;
 
-    if (!updates) return;
+      return new MapPoint(
+        prev.id,
+        prev.name,
+        field === 'lat' ? num : prev.lat,
+        field === 'lng' ? num : prev.lng,
+        prev.district, prev.address, prev.details, prev.status, prev.schedule,
+      );
+    });
 
-    const updated = this.updatePointModel(current, updates);
-
-    POINTS[index] = updated;
-    this.pointLayerApi?.mutate(id, () => updated);
     this.pointLayerApi?.centerOnModel(id, { maxZoom: 14 });
-  }
-
-  private updatePointModel(
-    prev: MapPoint,
-    updates: Partial<Pick<MapPoint, 'name' | 'lat' | 'lng'>>,
-  ): MapPoint {
-    return new MapPoint(
-      prev.id,
-      updates.name ?? prev.name,
-      updates.lat ?? prev.lat,
-      updates.lng ?? prev.lng,
-      prev.district,
-      prev.address,
-      prev.details,
-      prev.status,
-      prev.schedule,
-    );
   }
 
 
