@@ -196,4 +196,5 @@ View‑параметры (`centerLonLat`, `zoom`, `minZoom`, `maxZoom`) отн�
 
 ## Версии
 
-- 0.0.2 — Angular 19, OpenLayers 6.5.0.
+- 0.0.2 — Angular 19, OpenLayers 6.5.0
+- 0.0.3 — Angular 19, OpenLayers 6.5.0
