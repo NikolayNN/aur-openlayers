@@ -158,3 +158,7 @@ export class SimpleMapComponent {
 
 - Полное описание контрактов поведения (hit-test, hover/select/click, drag/modify, кластеризация, батчинг) — в `contract.md`.
 - `types.ts` остаётся единственным источником типов — договорённость проекта.
+
+
+ВЕРСИИ
+0.0.2 - angular 19, openlayers 6.5.0
