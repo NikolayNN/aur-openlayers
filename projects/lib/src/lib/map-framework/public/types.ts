@@ -17,6 +17,14 @@ import type {TranslateEvent} from 'ol/interaction/Translate';
 export type FeatureStyleState = string;
 
 /**
+ * Идентификатор доменной модели.
+ *
+ * @example
+ * const id: Id = 'point-1';
+ */
+export type Id = string | number;
+
+/**
  * Значение или функция, которая его вычисляет.
  *
  * Полезно для ленивых вычислений и адаптации к контексту.
@@ -154,6 +162,105 @@ export type ModelChange<M> = {
   reason: ModelChangeReason;
 };
 
+/**
+ * Причина внешнего изменения коллекции моделей слоя.
+ *
+ * @example
+ * const reason: ModelsSetReason = 'add';
+ */
+export type ModelsSetReason = 'set' | 'add' | 'remove' | 'clear';
+
+/**
+ * Ошибка, выбрасываемая при нарушении уникальности id моделей слоя.
+ *
+ * Возникает при попытке:
+ * - добавить модель с уже существующим id;
+ * - передать в setModels массив с дублирующимися id.
+ */
+export class DuplicateModelIdError extends Error {
+  public override readonly name = 'DuplicateModelIdError';
+
+  constructor(
+    /** Дублирующийся id. */
+    public readonly id: Id,
+    /** Идентификатор слоя. */
+    public readonly layerId: string,
+    message?: string,
+  ) {
+    super(message ?? `Model with id "${String(id)}" already exists on layer (${layerId}).`);
+  }
+}
+
+/**
+ * Событие внешнего изменения коллекции моделей слоя.
+ */
+export type ModelsCollectionEvent<M> = {
+  /** Снимок коллекции до изменения. */
+  prev: readonly M[];
+  /** Снимок коллекции после изменения. */
+  next: readonly M[];
+  /** Причина изменения. */
+  reason: ModelsSetReason;
+  /**
+   * Опциональный diff.
+   *
+   * Гарантируется для reason = 'add' | 'remove' | 'clear'.
+   * Может отсутствовать для reason = 'set'.
+   */
+  added?: readonly M[];
+  removed?: readonly M[];
+};
+
+/**
+ * API управления коллекцией моделей слоя.
+ */
+export interface VectorLayerCollectionApi<M> {
+  /** Текущий иммутабельный снимок моделей слоя. */
+  getAllModels: () => readonly M[];
+
+  /**
+   * Полная замена набора моделей.
+   *
+   * Требования:
+   * - Все id в массиве должны быть уникальны.
+   * - При обнаружении дубликата выбрасывается DuplicateModelIdError.
+   */
+  setModels: (models: readonly M[]) => void;
+
+  /**
+   * Подписка на внешние изменения коллекции моделей
+   * (set / add / remove / clear).
+   */
+  onModelsCollectionChanged: (cb: (e: ModelsCollectionEvent<M>) => void) => Unsubscribe;
+
+  /**
+   * Добавляет модель в конец коллекции.
+   *
+   * @throws DuplicateModelIdError если модель с таким id уже существует.
+   */
+  addModel: (model: M) => void;
+
+  /**
+   * Добавляет несколько моделей в конец коллекции
+   * (в порядке входного массива).
+   *
+   * @throws DuplicateModelIdError
+   */
+  addModels: (models: readonly M[]) => void;
+
+  /**
+   * Удаляет модели по id.
+   *
+   * @returns Количество реально удалённых моделей.
+   */
+  removeModelsById: (ids: readonly Id[]) => number;
+
+  /**
+   * Полностью очищает слой.
+   */
+  clear: () => void;
+}
+
 export type MutateOptions = {
   /** Причина изменения (по умолчанию 'mutate'). */
   reason?: ModelChangeReason;
@@ -201,9 +308,7 @@ export type Unsubscribe = () => void;
  * @example
  * ctx.layers.points.mutate(id, (prev) => ({ ...prev, active: true }));
  */
-export type VectorLayerApi<M, G extends Geometry> = {
-  /** Заменить весь набор моделей в слое. */
-  setModels: (models: readonly M[]) => void;
+export type VectorLayerApi<M, G extends Geometry> = VectorLayerCollectionApi<M> & {
   /** Запросить пересчёт слоя/стилей. */
   invalidate: () => void;
   /** Найти модель по фиче слоя. */
@@ -213,14 +318,14 @@ export type VectorLayerApi<M, G extends Geometry> = {
    * `update` обязан вернуть новый объект (или тот же для no-op).
    */
   mutate: (
-    id: string | number,
+    id: Id,
     update: (prev: M) => M,
     opts?: MutateOptions,
   ) => void;
 
   /** Массовая мутация (опционально). */
   mutateMany?: (
-    ids: Array<string | number>,
+    ids: Array<Id>,
     update: (prev: M) => M,
     opts?: MutateOptions,
   ) => void;
@@ -244,12 +349,12 @@ export type VectorLayerApi<M, G extends Geometry> = {
   /**
    * Центрирует карту на одной фиче по id.
    */
-  centerOnModel: (id: string | number, opts?: ViewFitOptions) => void;
+  centerOnModel: (id: Id, opts?: ViewFitOptions) => void;
 
   /**
    * Центрирует карту на наборе фичей по списку id.
    */
-  centerOnModels: (ids: ReadonlyArray<string | number>, opts?: ViewFitOptions) => void;
+  centerOnModels: (ids: ReadonlyArray<Id>, opts?: ViewFitOptions) => void;
 
   /**
    * Управление видимостью слоя.
@@ -284,28 +389,23 @@ export type VectorLayerApi<M, G extends Geometry> = {
   /**
    * Получить модель по id.
    */
-  getModelById: (id: string | number) => M | undefined;
+  getModelById: (id: Id) => M | undefined;
 
   /**
    * Проверить наличие модели по id.
    */
-  hasModel: (id: string | number) => boolean;
-
-  /**
-   * Получить текущий снимок моделей.
-   */
-  getAllModels: () => readonly M[];
+  hasModel: (id: Id) => boolean;
 
   /**
    * Получить текущий снимок id моделей.
    */
-  getAllModelIds: () => Array<string | number>;
+  getAllModelIds: () => Array<Id>;
 
   /**
    * Применить состояния стиля к фичам по id.
    */
   setFeatureStates: (
-    ids: string | number | ReadonlyArray<string | number>,
+    ids: Id | ReadonlyArray<Id>,
     states?: FeatureState,
   ) => void;
 };
@@ -334,7 +434,7 @@ export type PopupItem<M> = {
   /** Смещение popup относительно координаты. */
   offset?: number[];
   /** Ключ дедупликации элементов. */
-  dedupKey?: string | number;
+  dedupKey?: Id;
   /** Приоритет сортировки (чем больше, тем выше). */
   priority?: number;
   /** Источник элемента. */
@@ -355,7 +455,7 @@ export interface PopupHostApi {
   /** Очистить список. */
   clear: () => void;
   /** Удалить элемент по ключу. */
-  remove: (key: string | number) => void;
+  remove: (key: Id) => void;
   /** Получить текущие элементы. */
   getItems: () => PopupItem<any>[];
   /** Примонтировать popup-хост к DOM-узлу. */
@@ -404,7 +504,7 @@ export type MapController = {
  */
 export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
   /** Получение идентификатора модели. */
-  id: (model: M) => string | number;
+  id: (model: M) => Id;
   /** Синхронизация модели и геометрии. */
   geometry: {
     /** Преобразование модели в геометрию. */

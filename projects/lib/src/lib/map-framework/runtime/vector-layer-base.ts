@@ -4,14 +4,18 @@ import {createEmpty, extend, isEmpty} from 'ol/extent';
 import type VectorLayer from 'ol/layer/Vector';
 import type VectorSource from 'ol/source/Vector';
 
-import type {
-  FeatureDescriptor,
-  MapContext,
-  ModelChange,
-  MutateOptions,
-  VectorLayerApi,
-  VectorLayerDescriptor,
-  ViewFitOptions,
+import {
+  DuplicateModelIdError,
+  type FeatureDescriptor,
+  type Id,
+  type MapContext,
+  type ModelChange,
+  type ModelsCollectionEvent,
+  type ModelsSetReason,
+  type MutateOptions,
+  type VectorLayerApi,
+  type VectorLayerDescriptor,
+  type ViewFitOptions,
 } from '../public/types';
 import {FeatureRegistry} from './feature-registry';
 import {setFeatureStates} from './style/feature-states';
@@ -34,7 +38,10 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
   protected readonly registry = new FeatureRegistry<M, G>();
   protected readonly scheduleInvalidate: () => void;
   protected readonly ctx: MapContext;
+  protected readonly layerId: string;
   private readonly changeHandlers = new Set<(changes: ModelChange<M>[]) => void>();
+  private readonly collectionHandlers = new Set<(event: ModelsCollectionEvent<M>) => void>();
+  private models: M[] = [];
 
   constructor(options: VectorLayerBaseOptions<M, G, OPTS>) {
     this.descriptor = options.descriptor.feature;
@@ -42,10 +49,15 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.source = options.source;
     this.ctx = options.ctx;
     this.scheduleInvalidate = options.scheduleInvalidate;
+    this.layerId = options.descriptor.id;
   }
 
   setModels(models: readonly M[]): void {
-    this.setModelsInternal(models);
+    this.assertUniqueIds(models);
+    this.applyModelsUpdate({
+      nextModels: models,
+      reason: 'set',
+    });
   }
 
   invalidate(): void {
@@ -66,7 +78,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
   }
 
   mutate(
-    id: string | number,
+    id: Id,
     update: (prev: M) => M,
     opts?: MutateOptions,
   ): void {
@@ -80,6 +92,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     }
     const reason = opts?.reason ?? 'mutate';
     this.registry.updateModel(id, next);
+    this.replaceModelSnapshot(id, next);
     this.syncFeatureFromModel(next);
     this.scheduleInvalidate();
     if (!opts?.silent) {
@@ -88,7 +101,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
   }
 
   mutateMany(
-    ids: Array<string | number>,
+    ids: Array<Id>,
     update: (prev: M) => M,
     opts?: MutateOptions,
   ): void {
@@ -105,6 +118,7 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
         return;
       }
       this.registry.updateModel(id, next);
+      this.replaceModelSnapshot(id, next);
       this.syncFeatureFromModel(next);
       changes.push({prev, next, reason});
     });
@@ -122,6 +136,71 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
   onModelsChanged(cb: (changes: ModelChange<M>[]) => void): () => void {
     this.changeHandlers.add(cb);
     return () => this.changeHandlers.delete(cb);
+  }
+
+  onModelsCollectionChanged(cb: (event: ModelsCollectionEvent<M>) => void): () => void {
+    this.collectionHandlers.add(cb);
+    return () => this.collectionHandlers.delete(cb);
+  }
+
+  addModel(model: M): void {
+    this.addModels([model]);
+  }
+
+  addModels(models: readonly M[]): void {
+    if (models.length === 0) {
+      return;
+    }
+    const existingIds = new Set<Id>(this.models.map((item) => this.descriptor.id(item)));
+    const batchIds = new Set<Id>();
+    for (const model of models) {
+      const id = this.descriptor.id(model);
+      if (existingIds.has(id) || batchIds.has(id)) {
+        this.throwDuplicateId(id);
+      }
+      batchIds.add(id);
+    }
+    this.applyModelsUpdate({
+      nextModels: [...this.models, ...models],
+      reason: 'add',
+      added: models,
+    });
+  }
+
+  removeModelsById(ids: readonly Id[]): number {
+    if (ids.length === 0 || this.models.length === 0) {
+      return 0;
+    }
+    const idSet = new Set<Id>(ids);
+    const removed: M[] = [];
+    const nextModels = this.models.filter((model) => {
+      const id = this.descriptor.id(model);
+      if (idSet.has(id)) {
+        removed.push(model);
+        return false;
+      }
+      return true;
+    });
+    if (removed.length === 0) {
+      return 0;
+    }
+    this.applyModelsUpdate({
+      nextModels,
+      reason: 'remove',
+      removed,
+    });
+    return removed.length;
+  }
+
+  clear(): void {
+    if (this.models.length === 0) {
+      return;
+    }
+    this.applyModelsUpdate({
+      nextModels: [],
+      reason: 'clear',
+      removed: [...this.models],
+    });
   }
 
   /** Fit view to all features on the layer. No-op if extent is empty. */
@@ -191,33 +270,24 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.layer.setZIndex(z);
   }
 
-  getModelById(id: string | number): M | undefined {
+  getModelById(id: Id): M | undefined {
     return this.registry.getModel(id);
   }
 
-  hasModel(id: string | number): boolean {
+  hasModel(id: Id): boolean {
     return this.registry.getFeature(id) != null;
   }
 
   getAllModels(): readonly M[] {
-    const out: M[] = [];
-    this.registry.forEachId((id) => {
-      const model = this.registry.getModel(id);
-      if (model !== undefined) {
-        out.push(model);
-      }
-    });
-    return out;
+    return [...this.models];
   }
 
-  getAllModelIds(): Array<string | number> {
-    const out: Array<string | number> = [];
-    this.registry.forEachId((id) => out.push(id));
-    return out;
+  getAllModelIds(): Array<Id> {
+    return this.models.map((model) => this.descriptor.id(model));
   }
 
   setFeatureStates(
-    ids: string | number | ReadonlyArray<string | number>,
+    ids: Id | ReadonlyArray<Id>,
     states?: string | string[],
   ): void {
     const targetIds = Array.isArray(ids) ? ids : [ids];
@@ -280,5 +350,52 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
       return;
     }
     this.changeHandlers.forEach((handler) => handler(changes));
+  }
+
+  private emitCollectionChange(event: ModelsCollectionEvent<M>): void {
+    this.collectionHandlers.forEach((handler) => handler(event));
+  }
+
+  private assertUniqueIds(models: readonly M[]): void {
+    const ids = new Set<Id>();
+    for (const model of models) {
+      const id = this.descriptor.id(model);
+      if (ids.has(id)) {
+        this.throwDuplicateId(id);
+      }
+      ids.add(id);
+    }
+  }
+
+  private throwDuplicateId(id: Id): never {
+    throw new DuplicateModelIdError(id, this.layerId);
+  }
+
+  private applyModelsUpdate(args: {
+    nextModels: readonly M[];
+    reason: ModelsSetReason;
+    added?: readonly M[];
+    removed?: readonly M[];
+  }): void {
+    const prevSnapshot = [...this.models];
+    const internalNext = [...args.nextModels];
+    this.models = internalNext;
+    this.setModelsInternal(this.models);
+    const nextSnapshot = [...internalNext];
+    this.emitCollectionChange({
+      prev: prevSnapshot,
+      next: nextSnapshot,
+      reason: args.reason,
+      added: args.added ? [...args.added] : undefined,
+      removed: args.removed ? [...args.removed] : undefined,
+    });
+  }
+
+  private replaceModelSnapshot(id: Id, model: M): void {
+    const index = this.models.findIndex((item) => this.descriptor.id(item) === id);
+    if (index === -1) {
+      return;
+    }
+    this.models[index] = model;
   }
 }

@@ -42,9 +42,14 @@ const createApi = (
 ): VectorLayerApi<Model, Point> => {
   return {
     setModels: () => undefined,
+    onModelsCollectionChanged: () => () => undefined,
+    addModel: () => undefined,
+    addModels: () => undefined,
+    removeModelsById: () => 0,
+    clear: () => undefined,
     invalidate: () => undefined,
     getModelByFeature: (feature) => feature.get('model') as Model,
-    mutate: (_id, _update, _reason) => undefined,
+    mutate: (_id, _update, _opts) => undefined,
     centerOnModel: () => undefined,
     centerOnAllModels: () => undefined,
     centerOnModels: (_ids) => undefined,
@@ -1063,7 +1068,7 @@ describe('InteractionManager', () => {
 
       let mutateCalls = 0;
       const api = createApi({
-        mutate: (_id, _update, _reason) => {
+        mutate: (_id, _update, _opts) => {
           mutateCalls += 1;
         },
       });
@@ -1179,12 +1184,13 @@ describe('InteractionManager', () => {
       const changes: ModelChange<Model>[] = [];
 
       const api = createApi({
-        mutate: (_id, update, reason: ModelChangeReason = 'mutate') => {
+        mutate: (_id, update, opts) => {
           const prev = model;
           const next = update(prev);
           if (next === prev) {
             return;
           }
+          const reason = opts?.reason ?? 'mutate';
           model = next;
           itemA.feature.set('model', next);
           itemA.feature.setGeometry(new Point(next.coords ?? [0, 0]));
@@ -1260,7 +1266,7 @@ describe('InteractionManager', () => {
       let model = itemA.model;
       let mutateCalls = 0;
       const api = createApi({
-        mutate: (_id, update, _reason) => {
+        mutate: (_id, update, _opts) => {
           mutateCalls += 1;
           model = update(model);
           itemA.feature.set('model', model);
@@ -1558,7 +1564,7 @@ describe('InteractionManager', () => {
 
       let mutateCalls = 0;
       const api = createApi({
-        mutate: (_id, _update, _reason) => {
+        mutate: (_id, _update, _opts) => {
           mutateCalls += 1;
         },
       });
@@ -1723,12 +1729,13 @@ describe('InteractionManager', () => {
       const changes: ModelChange<Model>[] = [];
 
       const api = createApi({
-        mutate: (_id, update, reason: ModelChangeReason = 'mutate') => {
+        mutate: (_id, update, opts) => {
           const prev = model;
           const next = update(prev);
           if (next === prev) {
             return;
           }
+          const reason = opts?.reason ?? 'mutate';
           model = next;
           itemA.feature.set('model', next);
           itemA.feature.setGeometry(new Point(next.coords ?? [0, 0]));
@@ -1797,12 +1804,13 @@ describe('InteractionManager', () => {
       let model = itemA.model;
       const changes: ModelChange<Model>[] = [];
       const api = createApi({
-        mutate: (_id, update, reason: ModelChangeReason = 'mutate') => {
+        mutate: (_id, update, opts) => {
           const prev = model;
           const next = update(prev);
           if (next === prev) {
             return;
           }
+          const reason = opts?.reason ?? 'mutate';
           model = next;
           const batch: ModelChange<Model>[] = [{ prev, next, reason }];
           changes.push(...batch);
@@ -1855,7 +1863,7 @@ describe('InteractionManager', () => {
       let model = itemA.model;
       let mutateCalls = 0;
       const api = createApi({
-        mutate: (_id, update, _reason) => {
+        mutate: (_id, update, _opts) => {
           mutateCalls += 1;
           model = update(model);
           itemA.feature.set('model', model);
@@ -1916,7 +1924,7 @@ describe('InteractionManager', () => {
       let model = itemA.model;
       let mutateCalls = 0;
       const api = createApi({
-        mutate: (_id, update, _reason) => {
+        mutate: (_id, update, _opts) => {
           mutateCalls += 1;
           model = update(model);
           itemA.feature.set('model', model);
@@ -2621,7 +2629,7 @@ describe('InteractionManager', () => {
       let mutateCalls = 0;
 
       const api = createApi({
-        mutate: (_id, update, _reason) => {
+        mutate: (_id, update, _opts) => {
           mutateCalls += 1;
           const model = update(itemA.model);
           itemA.feature.set('model', model);

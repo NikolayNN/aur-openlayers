@@ -250,6 +250,63 @@ export class InteractionManager<
       if (this.activeTranslates.has(entry.descriptor.id)) {
         continue;
       }
+
+      const modify = interactions?.modify;
+      if (modify && this.isEnabled(modify.enabled)) {
+        const { items: candidates } = this.hitTest({
+          layerId: entry.descriptor.id,
+          layer: entry.layer,
+          api: entry.api,
+          descriptor: entry.descriptor,
+          event,
+          hitTolerance: this.getHitTolerance(modify.hitTolerance),
+        });
+
+        if (candidates.length > 0) {
+          const modifyEvent = this.createModifyEvent(event, 'modifystart', candidates);
+
+          let target: HitItem<any, any> | null | undefined;
+          if (modify.pickTarget) {
+            target = modify.pickTarget({ candidates, ctx: this.ctx, event: modifyEvent });
+          } else {
+            target = candidates[0];
+          }
+
+          if (target) {
+            const targetKey = entry.descriptor.feature.id(target.model);
+            const resolved = this.resolveTarget(entry, targetKey);
+            if (resolved) {
+              const active: ActiveModify = {
+                targetKey,
+                lastItem: resolved,
+                moveThrottleMs: modify.moveThrottleMs ?? 0,
+                modify,
+              };
+              this.activeModifies.set(entry.descriptor.id, active);
+              this.lockDragPan();
+
+              if (modify.state) {
+                this.applyState([resolved], modify.state, true);
+              }
+
+              const handled = modify.onStart
+                ? this.isHandled(
+                    modify.onStart({ item: resolved, ctx: this.ctx, event: modifyEvent }),
+                  )
+                : false;
+              active.lastHandled = handled;
+
+              if (handled && this.shouldStopPropagation(modify)) {
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (this.activeModifies.has(entry.descriptor.id)) {
+        continue;
+      }
     }
 
     this.updateCursor(event);
