@@ -435,12 +435,14 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
    */
   interactions?: {
     /**
-     * Обработка клика по фиче.
+     * Обработка клика по карте в контексте слоя.
+     * Коллбек вызывается даже при отсутствии фич под курсором
+     * (в этом случае `items` будет пустым массивом).
      */
     click?: InteractionBase & {
       /** Переопределение hitTolerance для клика. */
       hitTolerance?: number;
-      /** Коллбек клика по фичам текущего слоя. */
+      /** Коллбек клика по текущему слою. */
       onClick: (args: {
         items: Array<HitItem<M, G>>;
         ctx: MapContext;
@@ -449,12 +451,14 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     };
 
     /**
-     * Обработка двойного клика по фиче.
+     * Обработка двойного клика по карте в контексте слоя.
+     * Коллбек вызывается даже при отсутствии фич под курсором
+     * (в этом случае `items` будет пустым массивом).
      */
     doubleClick?: InteractionBase & {
       /** Переопределение hitTolerance для doubleClick. */
       hitTolerance?: number;
-      /** Коллбек двойного клика по фичам текущего слоя. */
+      /** Коллбек двойного клика по текущему слою. */
       onDoubleClick: (args: {
         items: Array<HitItem<M, G>>;
         ctx: MapContext;

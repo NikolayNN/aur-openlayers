@@ -1465,9 +1465,6 @@ export class InteractionManager<
     items: Array<HitItem<any, any>>,
     event: MapBrowserEvent<UIEvent>,
   ): boolean {
-    if (items.length === 0) {
-      return false;
-    }
     return this.isHandled(click.onClick({ items, ctx: this.ctx, event }));
   }
 
@@ -1479,9 +1476,6 @@ export class InteractionManager<
     items: Array<HitItem<any, any>>,
     event: MapBrowserEvent<UIEvent>,
   ): boolean {
-    if (items.length === 0) {
-      return false;
-    }
     return this.isHandled(doubleClick.onDoubleClick({ items, ctx: this.ctx, event }));
   }
 
