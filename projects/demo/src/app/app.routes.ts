@@ -80,6 +80,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-route-add-point',
+    loadComponent: () =>
+      import('./map-route-add-point/map-route-add-point.component').then(
+        (m) => m.MapRouteAddPointComponent,
+      ),
+  },
+  {
     path: 'static-map-point-popup',
     loadComponent: () =>
       import('./static-map-point-popup/static-map-point-popup.component').then((m) => m.StaticMapPointPopupComponent),

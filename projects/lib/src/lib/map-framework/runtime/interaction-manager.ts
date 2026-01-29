@@ -656,21 +656,28 @@ export class InteractionManager<
 
     this.schema.layers.forEach((descriptor) => {
       const state = this.enabledState.get(descriptor.id);
-      if (state?.hover) {
+      const interactions = descriptor.feature.interactions;
+      const maybeHover = this.isMaybeEnabled(interactions?.hover?.enabled);
+      const maybeClick = this.isMaybeEnabled(interactions?.click?.enabled);
+      const maybeSelect = this.isMaybeEnabled(interactions?.select?.enabled);
+      const maybeDoubleClick = this.isMaybeEnabled(interactions?.doubleClick?.enabled);
+      const maybeTranslate = this.isMaybeEnabled(interactions?.translate?.enabled);
+      const maybeModify = this.isMaybeEnabled(interactions?.modify?.enabled);
+
+      if (state?.hover || maybeHover) {
         needsPointerMove = true;
       }
-      if (state?.click || state?.select) {
+      if (state?.click || state?.select || maybeClick || maybeSelect) {
         needsSingleClick = true;
       }
-      if (state?.doubleClick) {
+      if (state?.doubleClick || maybeDoubleClick) {
         needsDoubleClick = true;
       }
-      if (state?.translate || state?.modify) {
+      if (state?.translate || state?.modify || maybeTranslate || maybeModify) {
         needsPointerDown = true;
         needsPointerDrag = true;
         needsPointerUp = true;
       }
-      const interactions = descriptor.feature.interactions;
       if (interactions && this.hasCursorInteraction(interactions)) {
         needsPointerMove = true;
       }
@@ -827,7 +834,7 @@ export class InteractionManager<
       interactions.modify,
     ];
     return candidates.some(
-      (interaction) => interaction?.cursor && this.isEnabled(interaction.enabled),
+      (interaction) => interaction?.cursor && this.isMaybeEnabled(interaction.enabled),
     );
   }
 
@@ -1439,6 +1446,16 @@ export class InteractionManager<
     }
     if (typeof enabled === 'function') {
       return enabled();
+    }
+    return enabled;
+  }
+
+  private isMaybeEnabled(enabled?: boolean | (() => boolean)): boolean {
+    if (enabled === undefined) {
+      return true;
+    }
+    if (typeof enabled === 'function') {
+      return true;
     }
     return enabled;
   }

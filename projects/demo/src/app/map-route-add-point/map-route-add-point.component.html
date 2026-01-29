@@ -1,0 +1,67 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Маршрут с добавлением точки</h2>
+    <p>
+      Пример интерактивного добавления точки в маршрут: черновик создаётся кликом, доступен для
+      перетаскивания и сохраняется в конец маршрута.
+    </p>
+  </header>
+
+  <div class="map-layout">
+    <aside class="map-panel">
+      <div class="map-panel__section">
+        <h3>Управление точкой</h3>
+        <p class="map-panel__hint">{{ draftHint }}</p>
+        <div class="map-panel__actions">
+          <button type="button" class="btn" [class.is-active]="isAddMode" (click)="toggleAddMode()">
+            {{ isAddMode ? 'Режим активен' : 'Добавить точку' }}
+          </button>
+          <button type="button" class="btn btn--primary" (click)="savePoint()" [disabled]="!draftPoint">
+            Сохранить в маршрут
+          </button>
+          <button type="button" class="btn btn--ghost" (click)="clearDraft()" [disabled]="!draftPoint">
+            Очистить черновик
+          </button>
+        </div>
+      </div>
+
+      <div class="map-panel__section">
+        <h4>Радиус действия (м)</h4>
+        <label class="field">
+          <input
+            type="number"
+            min="50"
+            step="50"
+            [ngModel]="draftRadius"
+            (ngModelChange)="updateDraftRadius($event)"
+          />
+        </label>
+        <p class="map-panel__meta">Задайте радиус для новой точки. По умолчанию 300 м.</p>
+      </div>
+
+      <div class="map-panel__section" *ngIf="draftPoint; else emptyDraft">
+        <h4>Черновая точка</h4>
+        <dl class="map-panel__list">
+          <div>
+            <dt>Lat</dt>
+            <dd>{{ draftPoint.lat | number : '1.5-5' }}</dd>
+          </div>
+          <div>
+            <dt>Lng</dt>
+            <dd>{{ draftPoint.lng | number : '1.5-5' }}</dd>
+          </div>
+          <div>
+            <dt>Радиус</dt>
+            <dd>{{ draftPoint.radiusMeters }} м</dd>
+          </div>
+        </dl>
+      </div>
+
+      <ng-template #emptyDraft>
+        <p class="map-panel__empty">Черновая точка ещё не создана.</p>
+      </ng-template>
+    </aside>
+
+    <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+  </div>
+</section>
