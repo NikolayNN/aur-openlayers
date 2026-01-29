@@ -63,11 +63,15 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
   selectedPoint: OrderedMapPoint | null = null;
   selectedPointName = '';
   isDragging = false;
+  isSelectEnabled = true;
+  isTranslateEnabled = true;
+  isPopupEnabled = true;
 
   private pointsOrder: string[] = BASE_POINTS.map((p) => p.id);
 
   private pointLayerApi?: VectorLayerApi<OrderedMapPoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<MapLine, LineString>;
+  private mapContext?: MapContext;
 
   private unsubscribeModelsChanged?: () => void;
 
@@ -169,6 +173,7 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
             },
             interactions: {
               select: {
+                enabled: () => this.isSelectEnabled,
                 cursor: 'pointer',
                 state: 'SELECTED',
                 hitTolerance: 6,
@@ -188,11 +193,12 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
                 },
               },
               translate: {
+                enabled: () => this.isTranslateEnabled,
                 cursor: 'grab',
                 hitTolerance: 6,
                 onStart: (point) => {
                   this.zone.run(() => (this.isDragging = true))
-                  this.selectPoint(point.item.model);
+                    this.selectPoint(point.item.model);
                 },
                 onEnd: () => {
                   this.zone.run(() => (this.isDragging = false));
@@ -205,6 +211,7 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
       options: {
         popupHost: {
           autoMode: 'hover',
+          enabled: () => this.isPopupEnabled,
           mount: () => this.popupHostElement.nativeElement,
         },
       },
@@ -226,6 +233,7 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
 
   // вызывется когда карта готова
   onReady(ctx: MapContext): void {
+    this.mapContext = ctx;
     this.pointLayerApi = ctx.layers[LAYER_ID.POINTS] as VectorLayerApi<OrderedMapPoint, Geometry>;
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<MapLine, LineString>;
 
@@ -320,5 +328,27 @@ export class MapRouteIterationsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsubscribeModelsChanged?.();
+  }
+
+  toggleSelect(): void {
+    this.isSelectEnabled = !this.isSelectEnabled;
+    if (!this.isSelectEnabled) {
+      this.clearSelectedPoint();
+      this.selectedPointName = '';
+    }
+  }
+
+  toggleTranslate(): void {
+    this.isTranslateEnabled = !this.isTranslateEnabled;
+    if (!this.isTranslateEnabled) {
+      this.isDragging = false;
+    }
+  }
+
+  togglePopup(): void {
+    this.isPopupEnabled = !this.isPopupEnabled;
+    if (!this.isPopupEnabled) {
+      this.mapContext?.popupHost?.clear();
+    }
   }
 }

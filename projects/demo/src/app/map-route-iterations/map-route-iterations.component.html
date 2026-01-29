@@ -10,6 +10,38 @@
   <div class="map-layout">
     <aside class="map-panel">
       <div class="map-panel__block">
+        <div>
+          <p class="map-panel__note">Интеракции карты. ВКЛ/Выкл</p>
+          <div class="iteration-buttons">
+            <button
+              type="button"
+              class="iteration-button"
+              [class.is-active]="isSelectEnabled"
+              (click)="toggleSelect()"
+            >
+              Select
+            </button>
+            <button
+              type="button"
+              class="iteration-button"
+              [class.is-active]="isTranslateEnabled"
+              (click)="toggleTranslate()"
+            >
+              Translate
+            </button>
+            <button
+              type="button"
+              class="iteration-button"
+              [class.is-active]="isPopupEnabled"
+              (click)="togglePopup()"
+            >
+              Popup
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="map-panel__block">
+
         <div class="map-panel__header">
           <h3>Выбранная точка</h3>
           <span class="map-panel__badge" [class.is-active]="isDragging">
