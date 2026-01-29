@@ -33,6 +33,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'map-click-interaction',
+    loadComponent: () =>
+      import('./map-click-interaction/map-click-interaction.component').then(
+        (m) => m.MapClickInteractionComponent,
+      ),
+  },
+  {
     path: 'simple-map-two-static-layers',
     loadComponent: () =>
       import('./simple-map-two-static-layers/simple-map-two-static-layers.component').then((m) => m.SimpleMapTwoStaticLayersComponent),
