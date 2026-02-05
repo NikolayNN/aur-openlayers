@@ -1,0 +1,40 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Маршрут и редактирование одной точки</h2>
+    <p>
+      Слева список точек маршрута. Выберите точку по кнопке «Редактировать» и на карте можно
+      перетаскивать только её. Описано как сделать чтобы можно было сделать перетаскивание только для выбранной точки
+    </p>
+  </header>
+
+  <div class="map-layout">
+    <aside class="sidebar">
+      <div class="sidebar__status" [class.is-active]="editingPointId">
+        <strong>
+          {{ editingPointId ? ('Точка в редактировании: ' + editingPointId) : 'Режим редактирования выключен' }}
+        </strong>
+        <span>{{ isDragging ? 'Перетаскивание…' : 'Ожидание' }}</span>
+      </div>
+
+      <button class="btn btn--stop" *ngIf="editingPointId" (click)="stopEdit()">Завершить редактирование</button>
+
+      <ul class="points-list">
+        <li *ngFor="let point of points" [class.is-editing]="point.id === editingPointId">
+          <div class="points-list__info">
+            <strong>{{ point.name }}</strong>
+            <small>{{ point.lat | number: '1.4-4' }}, {{ point.lng | number: '1.4-4' }}</small>
+          </div>
+
+          <div class="points-list__actions">
+            <button class="btn" (click)="startEdit(point.id)">Редактировать</button>
+            <button class="btn btn--danger" (click)="deletePoint(point.id)">Удалить</button>
+          </div>
+        </li>
+      </ul>
+
+      <p class="empty" *ngIf="!points.length">Все точки удалены.</p>
+    </aside>
+
+    <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+  </div>
+</section>

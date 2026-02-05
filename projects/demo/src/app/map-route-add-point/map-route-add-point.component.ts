@@ -23,7 +23,7 @@ import {
   MapPointGenerator,
   mapPointToGeometry,
 } from '../shared/map-point';
-import {Unsubscribe} from 'lib';
+import {Unsubscribe} from '../../../../lib/src/lib/map-framework/public/types';
 
 type PointStyleOptions = {
   color: string;

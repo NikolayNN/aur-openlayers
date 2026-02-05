@@ -79,6 +79,14 @@ export const routes: Routes = [
         (m) => m.MapRouteIterationsComponent,
       ),
   },
+
+  {
+    path: 'map-route-edit-point',
+    loadComponent: () =>
+      import('./map-route-edit-point/map-route-edit-point.component').then(
+        (m) => m.MapRouteEditPointComponent,
+      ),
+  },
   {
     path: 'map-route-add-point',
     loadComponent: () =>
