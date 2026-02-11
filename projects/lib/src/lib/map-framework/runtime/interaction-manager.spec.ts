@@ -37,6 +37,18 @@ const createLayer = (id: string, zIndex: number) => {
   return { layer, source };
 };
 
+const disableNativeModifyForLayer = (layer: VectorLayer) => {
+  const originalGetSource = layer.getSource.bind(layer);
+  let firstCall = true;
+  spyOn(layer, 'getSource').and.callFake(() => {
+    if (firstCall) {
+      firstCall = false;
+      return null as any;
+    }
+    return originalGetSource();
+  });
+};
+
 const createApi = (
   overrides: Partial<VectorLayerApi<Model, Point>> = {},
 ): VectorLayerApi<Model, Point> => {
@@ -1590,6 +1602,7 @@ describe('InteractionManager', () => {
     it('selects target via pickTarget and defaults to first candidate', () => {
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       const itemB = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
@@ -1652,11 +1665,18 @@ describe('InteractionManager', () => {
         ],
       };
 
+      const layerWithoutPick = createLayer('a', 1);
+      disableNativeModifyForLayer(layerWithoutPick.layer);
+      const itemAWithoutPick = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      const itemBWithoutPick = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
+      layerWithoutPick.source.addFeature(itemAWithoutPick.feature);
+      layerWithoutPick.source.addFeature(itemBWithoutPick.feature);
+
       const managerWithoutPick = buildManager(
         map,
         schemaWithoutPick,
-        [{ id: 'a', layer: layer.layer }],
-        () => ({ items: [itemB, itemA] }),
+        [{ id: 'a', layer: layerWithoutPick.layer }],
+        () => ({ items: [itemBWithoutPick, itemAWithoutPick] }),
       );
 
       managerWithoutPick.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
@@ -1777,6 +1797,7 @@ describe('InteractionManager', () => {
     it('uses hitTolerance override for modify', () => {
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -1820,6 +1841,7 @@ describe('InteractionManager', () => {
     it('resolves targets by id and aborts when missing', () => {
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -1873,6 +1895,7 @@ describe('InteractionManager', () => {
     it('mutates with modify reason and notifies changes', () => {
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -2009,6 +2032,7 @@ describe('InteractionManager', () => {
 
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -2070,6 +2094,7 @@ describe('InteractionManager', () => {
 
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -2130,6 +2155,7 @@ describe('InteractionManager', () => {
     it('applies and clears state during modify activity', () => {
       const map = createMap();
       const layer = createLayer('a', 1);
+      disableNativeModifyForLayer(layer.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       layer.source.addFeature(itemA.feature);
 
@@ -2175,6 +2201,8 @@ describe('InteractionManager', () => {
       const map = createMap();
       const layerA = createLayer('a', 2);
       const layerB = createLayer('b', 1);
+      disableNativeModifyForLayer(layerA.layer);
+      disableNativeModifyForLayer(layerB.layer);
       const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
       const itemB = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
       layerA.source.addFeature(itemA.feature);
@@ -2270,14 +2298,23 @@ describe('InteractionManager', () => {
         ],
       };
 
+      const layerAContinue = createLayer('a', 2);
+      const layerBContinue = createLayer('b', 1);
+      disableNativeModifyForLayer(layerAContinue.layer);
+      disableNativeModifyForLayer(layerBContinue.layer);
+      const itemAContinue = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      const itemBContinue = createHitItem({ id: 'b', value: 2, coords: [0, 0] });
+      layerAContinue.source.addFeature(itemAContinue.feature);
+      layerBContinue.source.addFeature(itemBContinue.feature);
+
       const managerContinue = buildManager(
         map,
         schemaContinue,
         [
-          { id: 'a', layer: layerA.layer },
-          { id: 'b', layer: layerB.layer },
+          { id: 'a', layer: layerAContinue.layer },
+          { id: 'b', layer: layerBContinue.layer },
         ],
-        ({ layerId }) => ({ items: layerId === 'a' ? [itemA] : [itemB] }),
+        ({ layerId }) => ({ items: layerId === 'a' ? [itemAContinue] : [itemBContinue] }),
       );
 
       managerContinue.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
