@@ -65,6 +65,7 @@ const createApi = (
     getAllModels: () => [],
     getAllModelIds: () => [],
     setFeatureStates: () => undefined,
+    clearFeatureStates: () => undefined,
 
     ...overrides,
   };

@@ -408,6 +408,11 @@ export type VectorLayerApi<M, G extends Geometry> = VectorLayerCollectionApi<M> 
     ids: Id | ReadonlyArray<Id>,
     states?: FeatureState,
   ) => void;
+
+  /**
+   * Сбросить состояния стиля у фич к состоянию по умолчанию.
+   */
+  clearFeatureStates: (ids: Id | ReadonlyArray<Id>) => void;
 };
 
 /**

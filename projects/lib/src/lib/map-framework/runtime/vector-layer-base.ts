@@ -303,6 +303,10 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.scheduleInvalidate();
   }
 
+  clearFeatureStates(ids: Id | ReadonlyArray<Id>): void {
+    this.setFeatureStates(ids, []);
+  }
+
   protected setModelsInternal(models: readonly M[]): void {
     const nextIds = new Set<string | number>();
     models.forEach((model) => {

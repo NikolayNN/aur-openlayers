@@ -136,6 +136,21 @@ describe('ClusteredVectorLayer', () => {
     expect(clusterSource.getSource()?.getFeatureById('a')).toBe(featureA);
   });
 
+
+  it('clears feature states by api method', () => {
+    const { api, source } = createLayerSetup(false);
+    const modelA: Model = { id: 'a', coords: [1, 2] };
+    api.setModels([modelA]);
+
+    api.setFeatureStates('a', ['HOVER']);
+
+    const featureA = source.getFeatureById('a') as Feature<Point>;
+    expect(getFeatureStates(featureA)).toEqual(['HOVER']);
+
+    api.clearFeatureStates('a');
+    expect(getFeatureStates(featureA)).toEqual([]);
+  });
+
   it('clears feature states when switching clustering', () => {
     const { api, source } = createLayerSetup(false);
     const modelA: Model = { id: 'a', coords: [1, 2] };
