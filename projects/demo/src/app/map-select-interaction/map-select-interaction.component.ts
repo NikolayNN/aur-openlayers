@@ -78,7 +78,6 @@ export class MapSelectInteractionComponent {
             },
             interactions: {
               select: {
-                enabled: false,
                 cursor: 'pointer',
                 state: 'SELECTED',
                 hitTolerance: 6,
