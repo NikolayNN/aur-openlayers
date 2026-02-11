@@ -1729,6 +1729,51 @@ describe('InteractionManager', () => {
       expect(endCalls).toBe(0);
     });
 
+
+    it('does not run manual modify pipeline when native modify interaction is active', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      let mutateCalls = 0;
+      const api = createApi({
+        mutate: () => {
+          mutateCalls += 1;
+        },
+      });
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                modify: {},
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => ({ items: [itemA] }),
+        () => api,
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 1]));
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [1, 1]));
+
+      expect(mutateCalls).toBe(0);
+    });
+
     it('uses hitTolerance override for modify', () => {
       const map = createMap();
       const layer = createLayer('a', 1);

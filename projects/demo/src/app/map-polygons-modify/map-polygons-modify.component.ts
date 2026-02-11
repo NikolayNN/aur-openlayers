@@ -143,7 +143,10 @@ export class MapPolygonsModifyComponent implements OnDestroy {
               interactions: {
                 modify: {
                   cursor: 'grabbing',
-                  hitTolerance: 8,
+                  // Увеличенный радиус попадания: на тачпадах/retina-дисплеях
+                  // вершину сложнее "зацепить" с небольшим hitTolerance,
+                  // из-за чего может казаться, что полигон не редактируется.
+                  hitTolerance: 16,
                   state: 'MODIFY',
                   //опциональная настройка маркера вида маркера при редактированиии
                   vertexStyle: new Style({

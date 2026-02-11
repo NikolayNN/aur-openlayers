@@ -252,7 +252,8 @@ export class InteractionManager<
       }
 
       const modify = interactions?.modify;
-      if (modify && this.isEnabled(modify.enabled)) {
+      const hasNativeModify = this.nativeModifies.has(entry.descriptor.id);
+      if (!hasNativeModify && modify && this.isEnabled(modify.enabled)) {
         const { items: candidates } = this.hitTest({
           layerId: entry.descriptor.id,
           layer: entry.layer,
