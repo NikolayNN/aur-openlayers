@@ -597,6 +597,17 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     select?: InteractionBase & {
       /** Переопределение hitTolerance для select. */
       hitTolerance?: number;
+      /**
+       * Фильтрация/выбор целевых элементов select из кандидатов hit-test.
+       *
+       * Возврат `null/undefined` или пустого массива означает игнорирование select
+       * для текущего клика (без `onSelect`, `onClear` и без изменения `state`).
+       */
+      pickTargets?: (args: {
+        candidates: Array<HitItem<M, G>>;
+        ctx: MapContext;
+        event: MapBrowserEvent<UIEvent>;
+      }) => Array<HitItem<M, G>> | null | undefined;
       /** Выбраны фичи текущего слоя. */
       onSelect?: (args: {
         items: Array<HitItem<M, G>>;

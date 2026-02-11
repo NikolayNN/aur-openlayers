@@ -1498,7 +1498,14 @@ export class InteractionManager<
     items: Array<HitItem<any, any>>,
     event: MapBrowserEvent<UIEvent>,
   ): boolean {
-    if (items.length === 0) {
+    const selectedItems = select.pickTargets
+      ? select.pickTargets({ candidates: items, ctx: this.ctx, event })
+      : items;
+
+    if (!selectedItems || selectedItems.length === 0) {
+      if (select.pickTargets) {
+        return false;
+      }
       const prev = this.selectedItems.get(entry.descriptor.id);
       this.selectedItems.set(entry.descriptor.id, new Map());
       if (select.onClear) {
@@ -1515,9 +1522,9 @@ export class InteractionManager<
     }
 
     const prev = this.selectedItems.get(entry.descriptor.id) ?? new Map();
-    const next = this.itemsToMap(entry, items);
+    const next = this.itemsToMap(entry, selectedItems);
     const handled = select.onSelect
-      ? this.isHandled(select.onSelect({ items, ctx: this.ctx, event }))
+      ? this.isHandled(select.onSelect({ items: selectedItems, ctx: this.ctx, event }))
       : false;
     if (select.state) {
       const added = Array.from(next.entries())

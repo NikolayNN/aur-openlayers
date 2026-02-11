@@ -739,6 +739,112 @@ describe('InteractionManager', () => {
     expect(getFeatureStates(itemB.feature)).toEqual([]);
   });
 
+
+  it('filters select items via pickTargets and syncs with onSelect', () => {
+    const map = createMap();
+    const layer = createLayer('a', 1);
+    const itemA = createHitItem({ id: 'a', value: 1 });
+    const itemB = createHitItem({ id: 'b', value: 2 });
+
+    const selectedIds: string[][] = [];
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      layers: [
+        {
+          id: 'a',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            interactions: {
+              select: {
+                state: 'SELECTED',
+                pickTargets: ({ candidates }) => [candidates[1]],
+                onSelect: ({ items }) => {
+                  selectedIds.push(items.map((item) => item.model.id));
+                  return true;
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const manager = buildManager(
+      map,
+      schema,
+      [{ id: 'a', layer: layer.layer }],
+      () => ({ items: [itemA, itemB] }),
+    );
+
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+    expect(selectedIds).toEqual([['b']]);
+    expect(getFeatureStates(itemA.feature)).toEqual([]);
+    expect(getFeatureStates(itemB.feature)).toEqual(['SELECTED']);
+  });
+
+  it('ignores select when pickTargets returns empty values', () => {
+    const map = createMap();
+    const layer = createLayer('a', 1);
+    const itemA = createHitItem({ id: 'a', value: 1 });
+    const itemB = createHitItem({ id: 'b', value: 2 });
+
+    const events: string[] = [];
+    const picks: Array<Array<HitItem<Model, Point>> | null | undefined> = [undefined, null, []];
+    let index = 0;
+
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      layers: [
+        {
+          id: 'a',
+          feature: {
+            id: (m: Model) => m.id,
+            geometry: {} as never,
+            style: {} as never,
+            interactions: {
+              select: {
+                state: 'SELECTED',
+                pickTargets: () => picks[index],
+                onSelect: () => {
+                  events.push('select');
+                  return true;
+                },
+                onClear: () => {
+                  events.push('clear');
+                  return true;
+                },
+              },
+              click: {
+                onClick: () => {
+                  events.push('click');
+                  return false;
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const manager = buildManager(
+      map,
+      schema,
+      [{ id: 'a', layer: layer.layer }],
+      () => ({ items: [itemA, itemB] }),
+    );
+
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+    index += 1;
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+    index += 1;
+    manager.handleSingleClick(createEvent(map, 'singleclick'));
+
+    expect(events).toEqual(['click', 'click', 'click']);
+    expect(getFeatureStates(itemA.feature)).toEqual([]);
+    expect(getFeatureStates(itemB.feature)).toEqual([]);
+  });
+
   it('handles select then click ordering on the same layer', () => {
     const map = createMap();
     const layer = createLayer('a', 1);
