@@ -113,4 +113,11 @@ export const routes: Routes = [
         (m) => m.MapPointZoomLabelsComponent,
       ),
   },
+  {
+    path: 'map-translate-threshold-events',
+    loadComponent: () =>
+      import('./map-translate-threshold-events/map-translate-threshold-events.component').then(
+        (m) => m.MapTranslateThresholdEventsComponent,
+      ),
+  },
 ];

@@ -1,0 +1,68 @@
+<section class="map-container">
+  <header class="map-header">
+    <h2>Сравнение translate.startThresholdPx</h2>
+    <p>
+      Взаимодействуйте с точками на двух картах и сравните порядок событий:
+      <code>onSelect</code>, <code>onClear</code>, <code>onDragStart</code>, <code>onDragChange</code>,
+      <code>onDragEnd</code>.
+    </p>
+  </header>
+
+  <div class="maps-grid">
+    <article class="map-card">
+      <h3>Карта A: startThresholdPx = 0</h3>
+      <p>Drag начинается сразу после pointer down на точке.</p>
+      <mff-map-host
+        class="map-canvas"
+        [config]="thresholdZeroConfig"
+        (ready)="onReady('threshold0', $event)"
+      ></mff-map-host>
+
+      <section class="events-panel">
+        <div class="events-panel__header">
+          <h4>Лог карты A</h4>
+          <button type="button" (click)="clearLog('threshold0')">Очистить</button>
+        </div>
+
+        <ol class="events-list" *ngIf="logsByMap.threshold0.length; else emptyFirstLog">
+          <li *ngFor="let row of logsByMap.threshold0">
+            <span class="events-list__event">{{ row.event }}</span>
+            <span class="events-list__count" *ngIf="row.count > 1">×{{ row.count }}</span>
+          </li>
+        </ol>
+
+        <ng-template #emptyFirstLog>
+          <p class="events-empty">Событий пока нет.</p>
+        </ng-template>
+      </section>
+    </article>
+
+    <article class="map-card">
+      <h3>Карта B: startThresholdPx по умолчанию</h3>
+      <p>Drag начинается после прохождения порога движения мыши.</p>
+      <mff-map-host
+        class="map-canvas"
+        [config]="defaultThresholdConfig"
+        (ready)="onReady('defaultThreshold', $event)"
+      ></mff-map-host>
+
+      <section class="events-panel">
+        <div class="events-panel__header">
+          <h4>Лог карты B</h4>
+          <button type="button" (click)="clearLog('defaultThreshold')">Очистить</button>
+        </div>
+
+        <ol class="events-list" *ngIf="logsByMap.defaultThreshold.length; else emptySecondLog">
+          <li *ngFor="let row of logsByMap.defaultThreshold">
+            <span class="events-list__event">{{ row.event }}</span>
+            <span class="events-list__count" *ngIf="row.count > 1">×{{ row.count }}</span>
+          </li>
+        </ol>
+
+        <ng-template #emptySecondLog>
+          <p class="events-empty">Событий пока нет.</p>
+        </ng-template>
+      </section>
+    </article>
+  </div>
+</section>
