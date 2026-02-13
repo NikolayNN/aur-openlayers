@@ -1116,6 +1116,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   pickTarget: ({ candidates }) => candidates[1],
                   onStart: ({ item }) => {
                     calls.push(item.model.id);
@@ -1157,6 +1158,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   onStart: ({ item }) => {
                     calls.push(item.model.id);
                     return true;
@@ -1564,6 +1566,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   onStart: () => {
                     calls.push('a');
                     return true;
@@ -1580,6 +1583,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   onStart: () => {
                     calls.push('b');
                     return true;
@@ -1615,6 +1619,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   propagation: 'continue',
                   onStart: () => {
                     calls.push('a');
@@ -1632,6 +1637,7 @@ describe('InteractionManager', () => {
               style: {} as never,
               interactions: {
                 translate: {
+                  startThresholdPx: 0,
                   onStart: () => {
                     calls.push('b');
                     return true;
