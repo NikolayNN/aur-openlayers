@@ -59,6 +59,8 @@ type ActiveTranslate = {
   lastCoordinate: [number, number];
   lastItem?: HitItem<any, any>;
   moveThrottleMs: number;
+  startThresholdPx: number;
+  started: boolean;
   translate: NonNullable<
     NonNullable<LayerEntry['descriptor']['feature']['interactions']>['translate']
   >;
@@ -223,24 +225,18 @@ export class InteractionManager<
                 lastCoordinate: event.coordinate as [number, number],
                 lastItem: resolved,
                 moveThrottleMs: translate.moveThrottleMs ?? 0,
+                startThresholdPx: Math.max(0, translate.startThresholdPx ?? 1),
+                started: false,
                 translate,
               };
               this.activeTranslates.set(entry.descriptor.id, active);
               this.lockDragPan();
 
-              if (translate.state) {
-                this.applyState([resolved], translate.state, true);
-              }
-
-              const handled = translate.onStart
-                ? this.isHandled(
-                    translate.onStart({ item: resolved, ctx: this.ctx, event: translateEvent }),
-                  )
-                : false;
-              active.lastHandled = handled;
-
-              if (handled && this.shouldStopPropagation(translate)) {
-                break;
+              if (active.startThresholdPx <= 0) {
+                this.startTranslate(entry, active, resolved, event);
+                if (active.lastHandled && this.shouldStopPropagation(translate)) {
+                  break;
+                }
               }
             }
           }
@@ -403,7 +399,7 @@ export class InteractionManager<
           this.applyTranslateMove(entry, active, pending);
         }
         const resolved = this.resolveTarget(entry, active.targetKey);
-        if (resolved && translate.onEnd) {
+        if (active.started && resolved && translate.onEnd) {
           const translateEvent = this.createTranslateEvent(
             event,
             active.startCoordinate,
@@ -1083,6 +1079,31 @@ export class InteractionManager<
     return { descriptor, layer, api, index };
   }
 
+  private startTranslate(
+    entry: LayerEntry,
+    active: ActiveTranslate,
+    resolved: HitItem<any, any>,
+    event: MapBrowserEvent<UIEvent>,
+  ): void {
+    if (active.started) {
+      return;
+    }
+    active.started = true;
+    if (active.translate.state) {
+      this.applyState([resolved], active.translate.state, true);
+    }
+
+    const translateEvent = this.createTranslateEvent(
+      event,
+      active.startCoordinate,
+      'translatestart',
+      [resolved],
+    );
+    active.lastHandled = active.translate.onStart
+      ? this.isHandled(active.translate.onStart({ item: resolved, ctx: this.ctx, event: translateEvent }))
+      : false;
+  }
+
   private applyTranslateMove(
     entry: LayerEntry,
     active: ActiveTranslate,
@@ -1100,6 +1121,19 @@ export class InteractionManager<
       nextCoordinate[0] - active.lastCoordinate[0],
       nextCoordinate[1] - active.lastCoordinate[1],
     ];
+
+    if (!active.started) {
+      const offsetX = nextCoordinate[0] - active.startCoordinate[0];
+      const offsetY = nextCoordinate[1] - active.startCoordinate[1];
+      const distance = Math.hypot(offsetX, offsetY);
+      if (distance < active.startThresholdPx) {
+        active.lastHandled = false;
+        return;
+      }
+
+      this.startTranslate(entry, active, resolved, event);
+    }
+
     active.lastCoordinate = nextCoordinate;
     active.lastItem = resolved;
 
@@ -1128,7 +1162,7 @@ export class InteractionManager<
       active.lastHandled = this.isHandled(
         translate.onChange({ item: resolved, ctx: this.ctx, event: translateEvent }),
       );
-    } else {
+    } else if (!translate.onStart) {
       active.lastHandled = false;
     }
   }

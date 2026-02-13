@@ -625,6 +625,17 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
     translate?: InteractionBase & {
       /** Переопределение hitTolerance для translate. */
       hitTolerance?: number;
+      /**
+       * Минимальное смещение курсора (в px) для старта translate.
+       * По умолчанию: `1`.
+       *
+       * Полезно, когда нужно разделить клик/select и перетаскивание:
+       * пока порог не пройден, `onStart`/`state`/`onChange` не срабатывают.
+       *
+       * Если нужен прежний режим, где drag-start срабатывает сразу на нажатие
+       * кнопки мыши (pointer down), установите `startThresholdPx: 0`.
+       */
+      startThresholdPx?: number;
       /** Ограничение частоты обновлений при перемещении (мс). */
       moveThrottleMs?: number;
       /**

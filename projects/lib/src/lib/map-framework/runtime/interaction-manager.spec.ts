@@ -1470,9 +1470,77 @@ describe('InteractionManager', () => {
       );
 
       manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [1, 0]));
       expect(getFeatureStates(itemA.feature)).toEqual(['DRAG']);
 
-      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [0, 0]));
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [1, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+    });
+
+    it('does not start translate until threshold is reached', () => {
+      const map = createMap();
+      const layer = createLayer('a', 1);
+      const itemA = createHitItem({ id: 'a', value: 1, coords: [0, 0] });
+      layer.source.addFeature(itemA.feature);
+
+      const onStart = jasmine.createSpy('onStart').and.returnValue(false);
+      const onChange = jasmine.createSpy('onChange').and.returnValue(false);
+      const onEnd = jasmine.createSpy('onEnd').and.returnValue(false);
+
+      const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+        layers: [
+          {
+            id: 'a',
+            feature: {
+              id: (m: Model) => m.id,
+              geometry,
+              style: {} as never,
+              interactions: {
+                translate: {
+                  state: 'DRAG',
+                  startThresholdPx: 5,
+                  onStart,
+                  onChange,
+                  onEnd,
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      const manager = buildManager(
+        map,
+        schema,
+        [{ id: 'a', layer: layer.layer }],
+        () => ({ items: [itemA] }),
+      );
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [3, 4]));
+      expect(onStart).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(getFeatureStates(itemA.feature)).toEqual(['DRAG']);
+
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [3, 4]));
+      expect(onEnd).toHaveBeenCalledTimes(1);
+      expect(getFeatureStates(itemA.feature)).toEqual([]);
+
+      onStart.calls.reset();
+      onChange.calls.reset();
+      onEnd.calls.reset();
+
+      manager.handlePointerDown(createPointerEvent(map, 'pointerdown', [0, 0]));
+      manager.handlePointerDrag(createPointerEvent(map, 'pointerdrag', [3, 0]));
+      manager.handlePointerUp(createPointerEvent(map, 'pointerup', [3, 0]));
+
+      expect(onStart).not.toHaveBeenCalled();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onEnd).not.toHaveBeenCalled();
       expect(getFeatureStates(itemA.feature)).toEqual([]);
     });
 
