@@ -97,9 +97,12 @@ const createPointerEvent = (
   map: Map,
   type: 'pointerdown' | 'pointerdrag' | 'pointerup',
   coordinate: [number, number],
+  pixel?: [number, number],
 ) => {
-  const event = new MapBrowserEvent(type, map, { pixel: [0, 0] } as unknown as PointerEvent);
+  const resolvedPixel = pixel ?? coordinate;
+  const event = new MapBrowserEvent(type, map, { pixel: resolvedPixel } as unknown as PointerEvent);
   (event as unknown as { coordinate: [number, number] }).coordinate = coordinate;
+  (event as unknown as { pixel: [number, number] }).pixel = resolvedPixel;
   return event;
 };
 

@@ -56,6 +56,7 @@ type ListenerName =
 type ActiveTranslate = {
   targetKey: string | number;
   startCoordinate: [number, number];
+  startPixel: [number, number];
   lastCoordinate: [number, number];
   lastItem?: HitItem<any, any>;
   moveThrottleMs: number;
@@ -222,6 +223,7 @@ export class InteractionManager<
               const active: ActiveTranslate = {
                 targetKey,
                 startCoordinate: event.coordinate as [number, number],
+                startPixel: event.pixel as [number, number],
                 lastCoordinate: event.coordinate as [number, number],
                 lastItem: resolved,
                 moveThrottleMs: translate.moveThrottleMs ?? 0,
@@ -1123,8 +1125,9 @@ export class InteractionManager<
     ];
 
     if (!active.started) {
-      const offsetX = nextCoordinate[0] - active.startCoordinate[0];
-      const offsetY = nextCoordinate[1] - active.startCoordinate[1];
+      const currentPixel = event.pixel as [number, number];
+      const offsetX = currentPixel[0] - active.startPixel[0];
+      const offsetY = currentPixel[1] - active.startPixel[1];
       const distance = Math.hypot(offsetX, offsetY);
       if (distance < active.startThresholdPx) {
         active.lastHandled = false;
