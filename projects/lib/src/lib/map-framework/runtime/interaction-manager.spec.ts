@@ -188,7 +188,7 @@ describe('InteractionManager', () => {
     );
 
     manager.handlePointerMove(createEvent(map, 'pointermove'));
-    expect(order).toEqual(['b', 'c', 'a']);
+    expect(order).toEqual(['c', 'b', 'a']);
   });
 
   it('supplies items only for the current layer', () => {

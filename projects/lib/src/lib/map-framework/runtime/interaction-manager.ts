@@ -1464,7 +1464,7 @@ export class InteractionManager<
         if (aZ !== bZ) {
           return bZ - aZ;
         }
-        return a.index - b.index;
+        return b.index - a.index;
       });
   }
 
