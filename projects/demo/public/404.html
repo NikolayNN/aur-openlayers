@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Demo</title>
+  <script>
+    var segmentCount = 1;
+    var locationInfo = window.location;
+    var origin = locationInfo.protocol + '//' + locationInfo.hostname + (locationInfo.port ? ':' + locationInfo.port : '');
+    var keptPath = locationInfo.pathname.split('/').slice(0, 1 + segmentCount).join('/');
+    var routePath = locationInfo.pathname.slice(1).split('/').slice(segmentCount).join('/').replace(/&/g, '~and~');
+    var search = locationInfo.search ? '&' + locationInfo.search.slice(1).replace(/&/g, '~and~') : '';
+
+    window.location.replace(origin + keptPath + '/?/' + routePath + search + locationInfo.hash);
+  </script>
+</head>
+<body>
+</body>
+</html>
