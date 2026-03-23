@@ -40,7 +40,7 @@ Replace the fixed navigation bar shown on every demo page with:
 ### 2. Simplified `AppComponent`
 
 **Changes to `app.component.html`:**
-Remove `<header class="app__header">` and `<nav class="app__nav">`. Keep only:
+Remove `<header class="app__header">`, `<nav class="app__nav">`, and the `<section class="app__content">` wrapper. Keep only:
 
 ```html
 <main class="app">
@@ -48,8 +48,10 @@ Remove `<header class="app__header">` and `<nav class="app__nav">`. Keep only:
 </main>
 ```
 
+The `<section class="app__content">` wrapper with `min-height: 60vh` is removed — each page (index and demo) manages its own minimum height.
+
 **Changes to `app.component.scss`:**
-Remove `.app__header`, `.app__nav` styles. Keep `.app` container with padding and background.
+Remove `.app__header`, `.app__nav`, `.app__content` styles. Keep `.app` container with padding and background.
 
 **Changes to `app.component.ts`:**
 Remove `RouterLink`, `RouterLinkActive` from imports. Keep only `RouterOutlet`.
@@ -62,8 +64,10 @@ Remove `RouterLink`, `RouterLinkActive` from imports. Keep only `RouterOutlet`.
 - `title: string` — demo title (e.g., "Маршрут с перетаскиванием")
 - `component: string` — Angular component name (e.g., "MapRouteDragComponent")
 - `description: string` — what the demo demonstrates
-- `features: string[]` — library features used (e.g., `['translate', 'OSRM routing', 'arrows']`)
-- `interactions: string[]` — how to interact (e.g., `['Клик по карте для добавления точек', 'Перетаскивание промежуточных точек']`)
+- `features: string[]` — library features used, defaults to `[]` (e.g., `['translate', 'OSRM routing', 'arrows']`)
+- `interactions: string[]` — how to interact, defaults to `[]` (e.g., `['Клик по карте для добавления точек', 'Перетаскивание промежуточных точек']`)
+
+The features and interactions sections are hidden when their arrays are empty.
 
 **Template structure:**
 ```html
@@ -116,26 +120,26 @@ Each route gets a `data` object with metadata for the index page:
 
 **Route data for all 18 demos:**
 
-| Path | Title | Component |
-|------|-------|-----------|
-| simple-map | Статические точки | SimpleMapComponent |
-| simple-map-two-static-layers | Два слоя: точки и линия | SimpleMapTwoStaticLayersComponent |
-| map-point-move | Перетаскивание точки | MapPointMoveComponent |
-| map-point-change-style | Смена стиля точек | MapPointChangeStyleComponent |
-| map-point-zoom-labels | Подписи точек на разных зумах | MapPointZoomLabelsComponent |
-| map-translate-threshold-events | Сравнение translate.startThresholdPx | MapTranslateThresholdEventsComponent |
-| map-select-interaction | Выбор точки на карте | MapSelectInteractionComponent |
-| map-click-interaction | Клик по карте | MapClickInteractionComponent |
-| static-map-point-popup | Попап точки при наведении | StaticMapPointPopupComponent |
-| map-five-points-cluster | Кластеризация точек | MapFivePointsClusterComponent |
-| map-line-drag-points | Линия по точкам с перетаскиванием | MapLineDragPointsComponent |
-| map-polygons-labels | Полигоны с подписями | MapPolygonsLabelsComponent |
-| map-polygons-modify | Редактирование полигонов | MapPolygonsModifyComponent |
-| map-point-mutate | Редактирование данных точек | MapPointMutateComponent |
-| map-route-iterations | Маршрут с изменением порядка | MapRouteIterationsComponent |
-| map-route-add-point | Маршрут с добавлением точки | MapRouteAddPointComponent |
-| map-route-edit-point | Маршрут: редактирование одной точки | MapRouteEditPointComponent |
-| map-route-drag | Маршрут с промежуточными точками | MapRouteDragComponent |
+| Path | Title | Component | Description |
+|------|-------|-----------|-------------|
+| simple-map | Статические точки | SimpleMapComponent | Слой с фиксированными точками и их названиями. |
+| simple-map-two-static-layers | Два слоя: точки и линия | SimpleMapTwoStaticLayersComponent | Точки и линейный слой с управлением видимостью и прозрачностью. |
+| map-point-move | Перетаскивание точки | MapPointMoveComponent | Перетаскивание маркера с обновлением координат. |
+| map-point-change-style | Смена стиля точек | MapPointChangeStyleComponent | Переключение цвета точек с обновлением стилей на карте. |
+| map-point-zoom-labels | Подписи точек на разных зумах | MapPointZoomLabelsComponent | LOD-стили: подписи появляются при увеличении масштаба. |
+| map-translate-threshold-events | Сравнение translate.startThresholdPx | MapTranslateThresholdEventsComponent | Сравнение порядка событий при взаимодействии с точками. |
+| map-select-interaction | Выбор точки на карте | MapSelectInteractionComponent | Клик по точке выделяет её и показывает название. |
+| map-click-interaction | Клик по карте | MapClickInteractionComponent | Нажмите на карту, чтобы получить координаты клика. |
+| static-map-point-popup | Попап точки при наведении | StaticMapPointPopupComponent | Наведите на точку для попапа с данными объекта. |
+| map-five-points-cluster | Кластеризация точек | MapFivePointsClusterComponent | Слой из точек с переключаемой кластеризацией. |
+| map-line-drag-points | Линия по точкам с перетаскиванием | MapLineDragPointsComponent | Точки соединённые линией с пересчётом при перетаскивании. |
+| map-polygons-labels | Полигоны с подписями | MapPolygonsLabelsComponent | Три полигона с названиями внутри каждой фигуры. |
+| map-polygons-modify | Редактирование полигонов | MapPolygonsModifyComponent | Перемещение вершин полигонов с обновлением координат. |
+| map-point-mutate | Редактирование данных точек | MapPointMutateComponent | Редактирование имени и координат точек через форму. |
+| map-route-iterations | Маршрут с изменением порядка | MapRouteIterationsComponent | Точки с линией, изменение порядка и имён через список. |
+| map-route-add-point | Маршрут с добавлением точки | MapRouteAddPointComponent | Интерактивное добавление точки в маршрут кликом. |
+| map-route-edit-point | Маршрут: редактирование одной точки | MapRouteEditPointComponent | Выбор и перетаскивание одной точки маршрута. |
+| map-route-drag | Маршрут с промежуточными точками | MapRouteDragComponent | Построение маршрута с OSRM и перетаскиваемыми промежуточными точками. |
 
 ### 5. Changes to Each Demo Component (x18)
 
@@ -159,10 +163,10 @@ For each of the 18 demo components:
 - `demo-index/demo-index.component.scss`
 - `shared/demo-header/demo-header.component.ts` (inline template+styles or separate files)
 
-**Modified files (21):**
+**Modified files (40):**
 - `app.component.ts` — remove RouterLink, RouterLinkActive imports
-- `app.component.html` — remove header and nav
-- `app.component.scss` — remove header and nav styles
+- `app.component.html` — remove header, nav, and `<section class="app__content">` wrapper
+- `app.component.scss` — remove `.app__header`, `.app__nav`, `.app__content` styles
 - `app.routes.ts` — add index route, add `data` to all 18 routes
 - 18 demo component `.html` files — replace header with `<app-demo-header>`
 - 18 demo component `.ts` files — add DemoHeaderComponent to imports
