@@ -55,6 +55,10 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         run: npx ng build lib --configuration production
 
+      - name: Verify dist package.json
+        if: steps.version.outputs.changed == 'true'
+        run: node -e "const p=require('./dist/lib/package.json'); if(!p.repository) throw new Error('repository field missing in dist package.json'); console.log('repository:', JSON.stringify(p.repository));"
+
       - name: Publish to npm
         if: steps.version.outputs.changed == 'true'
         run: |
