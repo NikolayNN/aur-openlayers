@@ -1,0 +1,20 @@
+<section class="map-container">
+  <app-demo-header
+    title="Центрирование по слоям"
+    component="CenterOnLayersComponent"
+    description="Центрирование карты на всех или выбранных слоях. Три слоя точек в разных частях Минска."
+    [features]="['centerOnAllLayers', 'centerOnLayers']"
+    [interactions]="['Кнопки центрирования']"
+  />
+
+  <div class="button-group">
+    <button type="button" (click)="centerAll()">Все слои</button>
+    <button type="button" (click)="centerLayers(['a'])">Слой A</button>
+    <button type="button" (click)="centerLayers(['b'])">Слой B</button>
+    <button type="button" (click)="centerLayers(['c'])">Слой C</button>
+    <button type="button" (click)="centerLayers(['a', 'b'])">Слои A + B</button>
+    <button type="button" (click)="centerLayers(['b', 'c'])">Слои B + C</button>
+  </div>
+
+  <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+</section>

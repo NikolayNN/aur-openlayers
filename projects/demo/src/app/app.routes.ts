@@ -217,4 +217,16 @@ export const routes: Routes = [
         (m) => m.MapRouteDragComponent,
       ),
   },
+  {
+    path: 'center-on-layers',
+    data: {
+      title: 'Центрирование по слоям',
+      component: 'CenterOnLayersComponent',
+      description: 'Центрирование карты на всех или выбранных слоях.',
+    },
+    loadComponent: () =>
+      import('./center-on-layers/center-on-layers.component').then(
+        (m) => m.CenterOnLayersComponent,
+      ),
+  },
 ];
