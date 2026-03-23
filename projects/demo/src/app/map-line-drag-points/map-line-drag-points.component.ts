@@ -10,6 +10,7 @@ import Text from 'ol/style/Text';
 import {LineString} from 'ol/geom';
 import {MapContext, VectorLayerApi, VectorLayerDescriptor,} from '../../../../lib/src/lib/map-framework';
 import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import {applyGeometryToMapPoint, MapPoint, MapPointGenerator, mapPointToGeometry,} from '../shared/map-point';
 
 const LAYER_ID = {
@@ -42,7 +43,7 @@ const POINT_IDS = POINTS.map((point) => point.id);
 @Component({
   selector: 'app-map-line-drag-points',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-line-drag-points.component.html',
   styleUrl: './map-line-drag-points.component.scss',
 })

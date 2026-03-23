@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Маршрут с промежуточными точками</h2>
-    <p>
-      Расставьте контрольные точки, постройте маршрут, затем кликайте по карте
-      для добавления промежуточных точек. Промежуточные точки можно перетаскивать.
-    </p>
-  </header>
+  <app-demo-header
+    title="Маршрут с промежуточными точками"
+    component="MapRouteDragComponent"
+    description="Расставьте контрольные точки, постройте маршрут, затем кликайте по карте для добавления промежуточных точек."
+    [features]="['translate', 'click', 'OSRM routing', 'direction arrows', 'multiple layers']"
+    [interactions]="['Клик по карте для точек', 'Построение маршрута', 'Перетаскивание промежуточных точек']"
+  />
 
   <div class="map-layout">
     <aside class="map-info">

@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Редактирование полигонов</h2>
-    <p>
-      На карте показаны три полигона с подписями. Перемещайте вершины, чтобы изменить форму
-      полигонов и сразу увидеть обновленные координаты.
-    </p>
-  </header>
+  <app-demo-header
+    title="Редактирование полигонов"
+    component="MapPolygonsModifyComponent"
+    description="Перемещайте вершины, чтобы изменить форму полигонов и увидеть обновлённые координаты."
+    [features]="['Polygon geometry', 'modify interaction', 'onModelsChanged']"
+    [interactions]="['Перетаскивание вершин полигонов']"
+  />
 
   <div class="map-layout">
     <aside class="map-info">

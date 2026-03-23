@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Маршрут с добавлением точки</h2>
-    <p>
-      Пример интерактивного добавления точки в маршрут: черновик создаётся кликом, доступен для
-      перетаскивания и сохраняется в конец маршрута.
-    </p>
-  </header>
+  <app-demo-header
+    title="Маршрут с добавлением точки"
+    component="MapRouteAddPointComponent"
+    description="Интерактивное добавление точки: черновик создаётся кликом, доступен для перетаскивания и сохраняется в конец маршрута."
+    [features]="['click', 'translate', 'addModel', 'removeModelsById']"
+    [interactions]="['Клик по карте для создания черновика', 'Перетаскивание черновика', 'Сохранение через панель']"
+  />
 
   <div class="map-layout">
     <aside class="map-panel">

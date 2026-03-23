@@ -13,6 +13,7 @@ import {
 } from '../../../../lib/src/lib/map-framework';
 import { escapeHtml } from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import {
   applyGeometryToMapPoint,
   mapPointToGeometry,
@@ -39,7 +40,7 @@ const POINTS = new MapPointGenerator().getByIds([
 @Component({
   selector: 'app-map-five-points-cluster',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-five-points-cluster.component.html',
   styleUrl: './map-five-points-cluster.component.scss',
 })

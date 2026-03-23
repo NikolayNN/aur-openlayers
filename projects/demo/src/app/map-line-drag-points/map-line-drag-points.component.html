@@ -1,10 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Линия по точкам с перетаскиванием</h2>
-    <p>
-       Точки соединенные линией. Перетаскивайте точки - линия пересчитывается автоматически.
-    </p>
-  </header>
+  <app-demo-header
+    title="Линия по точкам с перетаскиванием"
+    component="MapLineDragPointsComponent"
+    description="Точки соединённые линией. Перетаскивайте точки — линия пересчитывается автоматически."
+    [features]="['MultiPoint + LineString layers', 'translate', 'onModelsChanged']"
+    [interactions]="['Перетаскивание точек по карте']"
+  />
 
   <div class="map-layout">
     <aside class="map-info">

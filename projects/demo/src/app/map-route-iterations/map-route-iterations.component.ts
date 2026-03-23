@@ -15,6 +15,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import {escapeHtml} from '../../../../lib/src/lib/map-framework/public-utils/html-escape.utils';
 import {MapPoint, MapPointGenerator, mapPointToGeometry,} from '../shared/map-point';
 
@@ -51,7 +52,7 @@ const ROUTE_ID = 'single-route-id';
 @Component({
   selector: 'app-map-route-iterations',
   standalone: true,
-  imports: [CommonModule, FormsModule, MapHostComponent],
+  imports: [CommonModule, FormsModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-route-iterations.component.html',
   styleUrl: './map-route-iterations.component.scss',
 })

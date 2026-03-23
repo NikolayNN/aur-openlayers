@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Маршрут с изменением порядка</h2>
-    <p>
-      Точки соединены линией, индекс отображается прямо в круге.
-      Наведение раскрывает детали, выбор точки позволяет изменить имя и порядок в списке.
-    </p>
-  </header>
+  <app-demo-header
+    title="Маршрут с изменением порядка"
+    component="MapRouteIterationsComponent"
+    description="Точки соединены линией, индекс отображается в круге. Наведение раскрывает детали, выбор позволяет изменить имя и порядок."
+    [features]="['select', 'hover', 'LineString layer', 'mutate']"
+    [interactions]="['Наведение на точки', 'Клик для выбора', 'Изменение порядка в панели']"
+  />
 
   <div class="map-layout">
     <aside class="map-panel">

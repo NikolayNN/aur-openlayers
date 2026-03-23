@@ -17,6 +17,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import {
   applyGeometryToMapPoint,
   MapPoint,
@@ -78,7 +79,7 @@ const INITIAL_POINTS = new MapPointGenerator().getByCount(4);
 @Component({
   selector: 'app-map-route-add-point',
   standalone: true,
-  imports: [CommonModule, FormsModule, MapHostComponent],
+  imports: [CommonModule, FormsModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-route-add-point.component.html',
   styleUrl: './map-route-add-point.component.scss',
 })

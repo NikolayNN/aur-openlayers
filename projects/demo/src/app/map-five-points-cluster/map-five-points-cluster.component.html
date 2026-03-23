@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Пять точек с кластеризацией</h2>
-    <p>
-      Пример показывает, как создать слой из точек и при необходимости включать
-      кластеризацию одним переключателем.
-    </p>
-  </header>
+  <app-demo-header
+    title="Пять точек с кластеризацией"
+    component="MapFivePointsClusterComponent"
+    description="Слой из точек с переключаемой кластеризацией."
+    [features]="['cluster layer', 'toggle кластеризации']"
+    [interactions]="['Переключение кластеризации в боковой панели', 'Масштабирование карты']"
+  />
 
   <div class="map-layout">
     <aside class="map-panel">

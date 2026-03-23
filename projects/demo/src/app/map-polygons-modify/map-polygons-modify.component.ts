@@ -13,6 +13,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 
 const LAYER_ID = 'polygons';
 
@@ -73,7 +74,7 @@ const POLYGONS: MapPolygon[] = [
 @Component({
   selector: 'app-map-polygons-modify',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-polygons-modify.component.html',
   styleUrl: './map-polygons-modify.component.scss',
 })

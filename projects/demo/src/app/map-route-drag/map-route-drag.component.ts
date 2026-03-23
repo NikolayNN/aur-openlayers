@@ -9,6 +9,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import { RouteWaypoint, RouteLine, RouteArrow, LAYER_ID } from './route-drag.models';
 import { computeOrderIndexForClick, generateRouteArrows } from './geometry.utils';
 import { fetchOsrmRoute } from './osrm.service';
@@ -17,7 +18,7 @@ import { buildMapConfig } from './route-drag.schema';
 @Component({
   selector: 'app-map-route-drag',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-route-drag.component.html',
   styleUrl: './map-route-drag.component.scss',
 })
