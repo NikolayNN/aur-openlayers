@@ -46,7 +46,6 @@ const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
 type LineStyleOpts = {
   color: string;
   width: number;
-  dash: number[];
 };
 
 type PrimaryPointStyleOpts = {
@@ -81,8 +80,6 @@ export class MapRouteDragComponent implements OnDestroy {
   phase: 'placing' | 'routed' = 'placing';
   primaryPoints: RouteWaypoint[] = [];
   intermediatePoints: RouteWaypoint[] = [];
-  routeCoordinates: [number, number][] = []; // [lng, lat] for OSRM requests
-  routeCoordinates3857: number[][] = [];     // projected coords for modify vertex detection
   loading = false;
 
   private abortController: AbortController | null = null;
@@ -91,6 +88,7 @@ export class MapRouteDragComponent implements OnDestroy {
   private lineLayerApi?: VectorLayerApi<RouteLine, LineString>;
   private unsubscribes: (() => void)[] = [];
   private polylineFormat = new Polyline();
+  private lastRouteCoords3857: number[][] = []; // for nearest-segment calculation
 
   readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
 
@@ -110,7 +108,6 @@ export class MapRouteDragComponent implements OnDestroy {
     this.intermediateLayerApi = ctx.layers[LAYER_ID.INTERMEDIATE_POINTS] as VectorLayerApi<RouteWaypoint, Geometry> | undefined;
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<RouteLine, LineString> | undefined;
 
-    // Subscribe to model changes for intermediate points (translate)
     const unsub = this.intermediateLayerApi?.onModelsChanged?.((changes) => {
       this.zone.run(() => {
         changes.forEach(({ next }) => {
@@ -136,8 +133,7 @@ export class MapRouteDragComponent implements OnDestroy {
   resetRoute(): void {
     this.phase = 'placing';
     this.intermediatePoints = [];
-    this.routeCoordinates = [];
-    this.routeCoordinates3857 = [];
+    this.lastRouteCoords3857 = [];
     this.intermediateLayerApi?.clear();
     this.lineLayerApi?.clear();
   }
@@ -167,6 +163,7 @@ export class MapRouteDragComponent implements OnDestroy {
 
       if (data.code !== 'Ok' || !data.routes?.[0]) {
         console.error('OSRM error:', data);
+        this.zone.run(() => (this.loading = false));
         return;
       }
 
@@ -178,11 +175,9 @@ export class MapRouteDragComponent implements OnDestroy {
       const coords3857 = lineGeom.getCoordinates();
       const coordsLonLat = coords3857.map((c) => toLonLat(c) as [number, number]);
 
-      this.zone.run(() => {
-        this.routeCoordinates = coordsLonLat;
-        this.routeCoordinates3857 = coords3857;
-        this.loading = false;
-      });
+      this.lastRouteCoords3857 = coords3857;
+
+      this.zone.run(() => (this.loading = false));
 
       this.lineLayerApi?.setModels([{
         id: 'route',
@@ -195,47 +190,47 @@ export class MapRouteDragComponent implements OnDestroy {
     }
   }
 
-  // --- Vertex detection after modify ---
+  // --- Nearest segment calculation ---
 
-  private findInsertedVertex3857(newCoords: number[][]): { coord: number[]; segmentIndex: number } | null {
-    const oldCoords = this.routeCoordinates3857;
-    if (newCoords.length <= oldCoords.length) return null;
+  private computeOrderIndexForClick(clickCoord3857: number[]): number {
+    const waypoints = this.allWaypointsSorted;
+    if (waypoints.length < 2) return waypoints.length > 0 ? waypoints[waypoints.length - 1].orderIndex + 0.5 : 0.5;
 
-    // The modify interaction inserts exactly one vertex.
-    // Walk both arrays; when they diverge, the new coord is the inserted one.
-    // Compare in EPSG:3857 to avoid floating-point drift from projection round-trips.
-    const EPS = 0.01; // ~0.01 meters in 3857
-    let oldIdx = 0;
-    for (let i = 0; i < newCoords.length; i++) {
-      if (oldIdx < oldCoords.length &&
-          Math.abs(newCoords[i][0] - oldCoords[oldIdx][0]) < EPS &&
-          Math.abs(newCoords[i][1] - oldCoords[oldIdx][1]) < EPS) {
-        oldIdx++;
-      } else {
-        return { coord: newCoords[i], segmentIndex: i };
+    const route = this.lastRouteCoords3857;
+    if (route.length < 2) return waypoints[waypoints.length - 1].orderIndex + 0.5;
+
+    // Find nearest segment on route polyline
+    let minDist = Infinity;
+    let nearestSegIdx = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+      const d = this.distToSegment(clickCoord3857, route[i], route[i + 1]);
+      if (d < minDist) {
+        minDist = d;
+        nearestSegIdx = i;
       }
     }
-    return null;
-  }
 
-  private computeOrderIndexForSegment(segmentIndex: number): number {
-    // Find which two waypoints this segment falls between
-    // Map the segment index to approximate position along the route
-    const waypoints = this.allWaypointsSorted;
-    if (waypoints.length < 2) return 0.5;
-
-    const totalRoutePoints = this.routeCoordinates.length;
-    if (totalRoutePoints === 0) return waypoints[0].orderIndex + 0.5;
-
-    // Approximate: segment position relative to total route length
-    const fraction = segmentIndex / totalRoutePoints;
-    const approxWaypointIdx = fraction * (waypoints.length - 1);
-    const lowerIdx = Math.floor(approxWaypointIdx);
+    // Map segment index to position between waypoints
+    const fraction = nearestSegIdx / (route.length - 1);
+    const approxIdx = fraction * (waypoints.length - 1);
+    const lowerIdx = Math.floor(approxIdx);
     const upperIdx = Math.min(lowerIdx + 1, waypoints.length - 1);
 
     const lower = waypoints[lowerIdx].orderIndex;
     const upper = waypoints[upperIdx].orderIndex;
     return (lower + upper) / 2;
+  }
+
+  private distToSegment(p: number[], a: number[], b: number[]): number {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+    let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const projX = a[0] + t * dx;
+    const projY = a[1] + t * dy;
+    return Math.hypot(p[0] - projX, p[1] - projY);
   }
 
   // --- Point management ---
@@ -253,16 +248,8 @@ export class MapRouteDragComponent implements OnDestroy {
     this.primaryLayerApi?.addModel(wp);
   }
 
-  private removePrimaryPoint(id: string): void {
-    this.primaryPoints = this.primaryPoints.filter((p) => p.id !== id);
-    this.primaryLayerApi?.removeModelsById([id]);
-
-    // Renumber remaining primary points
-    this.primaryPoints = this.primaryPoints.map((p, i) => ({ ...p, orderIndex: i + 1 }));
-    this.primaryLayerApi?.setModels(this.primaryPoints);
-  }
-
-  private addIntermediatePoint(lon: number, lat: number, orderIndex: number): void {
+  private addIntermediatePoint(lon: number, lat: number, clickCoord3857: number[]): void {
+    const orderIndex = this.computeOrderIndexForClick(clickCoord3857);
     const wp: RouteWaypoint = {
       id: nextWaypointId('intermediate'),
       lat,
@@ -272,6 +259,14 @@ export class MapRouteDragComponent implements OnDestroy {
     };
     this.intermediatePoints = [...this.intermediatePoints, wp];
     this.intermediateLayerApi?.addModel(wp);
+    this.fetchRoute();
+  }
+
+  private removePrimaryPoint(id: string): void {
+    this.primaryPoints = this.primaryPoints.filter((p) => p.id !== id);
+    // Renumber remaining primary points
+    this.primaryPoints = this.primaryPoints.map((p, i) => ({ ...p, orderIndex: i + 1 }));
+    this.primaryLayerApi?.setModels(this.primaryPoints);
   }
 
   private removeIntermediatePoint(id: string): void {
@@ -303,7 +298,7 @@ export class MapRouteDragComponent implements OnDestroy {
     return {
       schema: {
         layers: [
-          // Layer 1: Route line
+          // Layer 1: Route line (no interactions)
           {
             id: LAYER_ID.ROUTE_LINE,
             zIndex: 1,
@@ -312,62 +307,25 @@ export class MapRouteDragComponent implements OnDestroy {
               geometry: {
                 fromModel: (model: RouteLine) =>
                   new LineString(model.coordinates.map(([lng, lat]) => fromLonLat([lng, lat]))),
-                applyGeometryToModel: (prev: RouteLine) => prev, // no-op: geometry managed via OSRM
+                applyGeometryToModel: (prev: RouteLine) => prev,
               },
               style: {
                 base: () => ({
                   color: '#2563eb',
                   width: 4,
-                  dash: [] as number[],
                 }),
-                states: {
-                  MODIFY: () => ({
-                    width: 5,
-                    dash: [12, 8],
-                  }),
-                },
                 render: (opts: LineStyleOpts) =>
                   new Style({
                     stroke: new Stroke({
                       color: opts.color,
                       width: opts.width,
-                      ...(opts.dash.length ? { lineDash: opts.dash } : {}),
                     }),
                   }),
-              },
-              interactions: {
-                modify: {
-                  cursor: 'grab',
-                  hitTolerance: 10,
-                  state: 'MODIFY',
-                  vertexStyle: new Style({
-                    image: new CircleStyle({
-                      radius: 6,
-                      fill: new Fill({ color: '#ffffff' }),
-                      stroke: new Stroke({ color: '#2563eb', width: 2 }),
-                    }),
-                  }),
-                  onEnd: ({ item }) => {
-                    const geom = item.feature.getGeometry() as LineString;
-                    const newCoords3857 = geom.getCoordinates();
-
-                    const inserted = this.findInsertedVertex3857(newCoords3857);
-                    if (inserted) {
-                      const [lng, lat] = toLonLat(inserted.coord) as [number, number];
-                      const orderIndex = this.computeOrderIndexForSegment(inserted.segmentIndex);
-                      this.zone.run(() => {
-                        this.addIntermediatePoint(lng, lat, orderIndex);
-                      });
-                      this.fetchRoute();
-                    }
-                    return true;
-                  },
-                },
               },
             },
           },
 
-          // Layer 2: Intermediate points
+          // Layer 2: Intermediate points (click to add, translate to move)
           {
             id: LAYER_ID.INTERMEDIATE_POINTS,
             zIndex: 2,
@@ -411,6 +369,16 @@ export class MapRouteDragComponent implements OnDestroy {
                   cursor: 'pointer',
                   state: 'HOVER',
                 },
+                click: {
+                  enabled: () => this.phase === 'routed',
+                  onClick: ({ items, event }) => {
+                    if (items.length === 0) {
+                      const [lng, lat] = toLonLat(event.coordinate) as [number, number];
+                      this.zone.run(() => this.addIntermediatePoint(lng, lat, event.coordinate as number[]));
+                    }
+                    return true;
+                  },
+                },
                 doubleClick: {
                   onDoubleClick: ({ items }) => {
                     const model = items[0]?.model;
@@ -421,7 +389,6 @@ export class MapRouteDragComponent implements OnDestroy {
                   },
                 },
                 translate: {
-                  enabled: () => this.phase === 'routed',
                   cursor: 'grab',
                   hitTolerance: 6,
                   state: 'DRAG',
@@ -434,7 +401,7 @@ export class MapRouteDragComponent implements OnDestroy {
             },
           },
 
-          // Layer 3: Primary points
+          // Layer 3: Primary points (click to add in placing phase)
           {
             id: LAYER_ID.PRIMARY_POINTS,
             zIndex: 3,
@@ -484,7 +451,6 @@ export class MapRouteDragComponent implements OnDestroy {
                   enabled: () => this.phase === 'placing',
                   onClick: ({ items, event }) => {
                     if (items.length === 0) {
-                      // Click on empty space — add point
                       const [lng, lat] = toLonLat(event.coordinate) as [number, number];
                       this.zone.run(() => this.addPrimaryPoint(lng, lat));
                     }
