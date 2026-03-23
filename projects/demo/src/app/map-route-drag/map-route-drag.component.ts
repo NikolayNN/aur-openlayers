@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import type Geometry from 'ol/geom/Geometry';
 import { LineString, Point } from 'ol/geom';
 import { fromLonLat, toLonLat } from 'ol/proj';
+import DoubleClickZoom from 'ol/interaction/DoubleClickZoom';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
@@ -11,6 +12,7 @@ import Text from 'ol/style/Text';
 import Polyline from 'ol/format/Polyline';
 import {
   MapContext,
+  MapController,
   VectorLayerApi,
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
@@ -91,6 +93,18 @@ export class MapRouteDragComponent implements OnDestroy {
   private lastRouteCoords3857: number[][] = []; // for nearest-segment calculation
 
   readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
+
+  // Controller to disable default OL DoubleClickZoom so our doubleClick interaction works
+  readonly disableDoubleClickZoom: MapController = {
+    bind: (ctx) => {
+      const map = ctx.map;
+      map.getInteractions().forEach((interaction) => {
+        if (interaction instanceof DoubleClickZoom) {
+          map.removeInteraction(interaction);
+        }
+      });
+    },
+  };
 
   get allWaypointsSorted(): RouteWaypoint[] {
     return [...this.primaryPoints, ...this.intermediatePoints]
@@ -476,6 +490,7 @@ export class MapRouteDragComponent implements OnDestroy {
         zoom: 11,
       },
       osm: true,
+      controllers: [this.disableDoubleClickZoom],
     };
   }
 }
