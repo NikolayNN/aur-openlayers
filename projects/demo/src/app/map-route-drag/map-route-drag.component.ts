@@ -1,13 +1,8 @@
 import { Component, NgZone, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type Geometry from 'ol/geom/Geometry';
-import { LineString, Point } from 'ol/geom';
-import { fromLonLat, toLonLat } from 'ol/proj';
-import CircleStyle from 'ol/style/Circle';
-import Fill from 'ol/style/Fill';
-import Stroke from 'ol/style/Stroke';
-import Style from 'ol/style/Style';
-import Text from 'ol/style/Text';
+import type OlMap from 'ol/Map';
+import { LineString } from 'ol/geom';
 import {
   MapContext,
   VectorLayerApi,
@@ -17,36 +12,7 @@ import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.com
 import { RouteWaypoint, RouteLine, RouteArrow, LAYER_ID } from './route-drag.models';
 import { computeOrderIndexForClick, generateRouteArrows } from './geometry.utils';
 import { fetchOsrmRoute } from './osrm.service';
-import RegularShape from 'ol/style/RegularShape';
-
-// --- Style ---
-
-type LineStyleOpts = { color: string; width: number };
-
-type PointStyleOpts = {
-  color: string;
-  radius: number;
-  strokeColor: string;
-  label: string;
-};
-
-function renderPoint(opts: PointStyleOpts): Style[] {
-  return [new Style({
-    image: new CircleStyle({
-      radius: opts.radius,
-      fill: new Fill({ color: opts.color }),
-      stroke: new Stroke({ color: opts.strokeColor, width: 2 }),
-    }),
-    text: opts.label ? new Text({
-      text: opts.label,
-      fill: new Fill({ color: '#ffffff' }),
-      stroke: new Stroke({ color: 'rgba(15, 23, 42, 0.45)', width: 2 }),
-      font: opts.radius >= 12 ? '700 12px "Inter", sans-serif' : '600 9px "Inter", sans-serif',
-      textAlign: 'center',
-      textBaseline: 'middle',
-    }) : undefined,
-  })];
-}
+import { buildMapConfig } from './route-drag.schema';
 
 @Component({
   selector: 'app-map-route-drag',
@@ -62,6 +28,8 @@ export class MapRouteDragComponent implements OnDestroy {
   loading = false;
   sortedWaypoints: RouteWaypoint[] = [];
 
+  readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
+
   private waypointCounter = 0;
   private abortController: AbortController | null = null;
   private primaryLayerApi?: VectorLayerApi<RouteWaypoint, Geometry>;
@@ -70,17 +38,31 @@ export class MapRouteDragComponent implements OnDestroy {
   private arrowLayerApi?: VectorLayerApi<RouteArrow, Geometry>;
   private unsubscribes: (() => void)[] = [];
   private lastRouteCoords3857: number[][] = [];
-  private intermediateLabels = new Map<string, string>();
-  private map?: import('ol/Map').default;
-
-  readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
-
-  getIntermediateLabel(id: string): string {
-    return this.intermediateLabels.get(id) ?? '';
-  }
+  private map?: OlMap;
 
   constructor(private readonly zone: NgZone) {
-    this.mapConfig = this.buildMapConfig();
+    this.mapConfig = buildMapConfig({
+      getPhase: () => this.phase,
+      getIntermediateLabel: (id) => this.getIntermediateLabel(id),
+      onClickMap: (lon, lat) => this.zone.run(() => this.addPrimaryPoint(lon, lat)),
+      onClickMapIntermediate: (lon, lat, c) => this.zone.run(() => this.addIntermediatePoint(lon, lat, c)),
+      onTranslateEnd: () => this.fetchRoute(),
+    });
+  }
+
+  getIntermediateLabel(id: string): string {
+    let lastPrimaryIndex = 0;
+    let counter = 0;
+    for (const wp of this.sortedWaypoints) {
+      if (wp.type === 'primary') {
+        lastPrimaryIndex = wp.orderIndex;
+        counter = 0;
+      } else {
+        counter++;
+        if (wp.id === id) return `${lastPrimaryIndex}.${counter}`;
+      }
+    }
+    return '';
   }
 
   onReady(ctx: MapContext): void {
@@ -112,7 +94,6 @@ export class MapRouteDragComponent implements OnDestroy {
     this.phase = 'placing';
     this.intermediatePoints = [];
     this.lastRouteCoords3857 = [];
-    this.intermediateLabels.clear();
     this.intermediateLayerApi?.clear();
     this.lineLayerApi?.clear();
     this.arrowLayerApi?.clear();
@@ -120,8 +101,7 @@ export class MapRouteDragComponent implements OnDestroy {
   }
 
   removePoint(id: string): void {
-    const isPrimary = this.primaryPoints.some(p => p.id === id);
-    if (isPrimary) {
+    if (this.primaryPoints.some(p => p.id === id)) {
       this.primaryPoints = this.primaryPoints
         .filter(p => p.id !== id)
         .map((p, i) => ({ ...p, orderIndex: i + 1 }));
@@ -133,12 +113,9 @@ export class MapRouteDragComponent implements OnDestroy {
 
     this.rebuildSorted();
     if (this.phase === 'routed') {
-      if (this.primaryPoints.length + this.intermediatePoints.length >= 2) {
-        this.recalcIntermediateLabels();
-        this.fetchRoute();
-      } else {
-        this.resetRoute();
-      }
+      this.primaryPoints.length + this.intermediatePoints.length >= 2
+        ? this.fetchRoute()
+        : this.resetRoute();
     }
   }
 
@@ -149,10 +126,6 @@ export class MapRouteDragComponent implements OnDestroy {
 
   // --- Private ---
 
-  private nextId(type: 'primary' | 'intermediate'): string {
-    return `${type}-${++this.waypointCounter}`;
-  }
-
   private rebuildSorted(): void {
     this.sortedWaypoints = [...this.primaryPoints, ...this.intermediatePoints]
       .sort((a, b) => a.orderIndex - b.orderIndex);
@@ -161,26 +134,7 @@ export class MapRouteDragComponent implements OnDestroy {
   private updateArrows(): void {
     if (this.lastRouteCoords3857.length < 2) return;
     const resolution = this.map?.getView().getResolution() ?? 1;
-    // Scale interval with resolution: ~80px between arrows on screen
-    const interval = Math.max(100, resolution * 80);
-    this.arrowLayerApi?.setModels(generateRouteArrows(this.lastRouteCoords3857, interval));
-  }
-
-  private recalcIntermediateLabels(): void {
-    this.intermediateLabels.clear();
-    let lastPrimaryIndex = 0;
-    let counter = 0;
-    for (const wp of this.sortedWaypoints) {
-      if (wp.type === 'primary') {
-        lastPrimaryIndex = wp.orderIndex;
-        counter = 0;
-      } else {
-        counter++;
-        this.intermediateLabels.set(wp.id, `${lastPrimaryIndex}.${counter}`);
-      }
-    }
-    // Force style refresh
-    this.intermediateLayerApi?.setModels(this.intermediatePoints);
+    this.arrowLayerApi?.setModels(generateRouteArrows(this.lastRouteCoords3857, Math.max(100, resolution * 80)));
   }
 
   private async fetchRoute(): Promise<void> {
@@ -207,7 +161,7 @@ export class MapRouteDragComponent implements OnDestroy {
 
   private addPrimaryPoint(lon: number, lat: number): void {
     const wp: RouteWaypoint = {
-      id: this.nextId('primary'),
+      id: `primary-${++this.waypointCounter}`,
       lat, lng: lon,
       orderIndex: this.primaryPoints.length + 1,
       type: 'primary',
@@ -219,7 +173,7 @@ export class MapRouteDragComponent implements OnDestroy {
 
   private addIntermediatePoint(lon: number, lat: number, clickCoord3857: number[]): void {
     const wp: RouteWaypoint = {
-      id: this.nextId('intermediate'),
+      id: `intermediate-${++this.waypointCounter}`,
       lat, lng: lon,
       orderIndex: computeOrderIndexForClick(clickCoord3857, this.sortedWaypoints, this.lastRouteCoords3857),
       type: 'intermediate',
@@ -227,137 +181,6 @@ export class MapRouteDragComponent implements OnDestroy {
     this.intermediatePoints = [...this.intermediatePoints, wp];
     this.intermediateLayerApi?.addModel(wp);
     this.rebuildSorted();
-    this.recalcIntermediateLabels();
     this.fetchRoute();
-  }
-
-  // --- Schema ---
-
-  private buildMapConfig(): MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]> {
-    return {
-      schema: {
-        layers: [
-          {
-            id: LAYER_ID.ROUTE_LINE,
-            zIndex: 1,
-            feature: {
-              id: (m: RouteLine) => m.id,
-              geometry: {
-                fromModel: (m: RouteLine) =>
-                  new LineString(m.coordinates.map(([lng, lat]) => fromLonLat([lng, lat]))),
-                applyGeometryToModel: (prev: RouteLine) => prev,
-              },
-              style: {
-                base: (): LineStyleOpts => ({ color: '#2563eb', width: 4 }),
-                render: (opts: LineStyleOpts) =>
-                  new Style({ stroke: new Stroke({ color: opts.color, width: opts.width }) }),
-              },
-            },
-          },
-          {
-            id: LAYER_ID.ROUTE_ARROWS,
-            zIndex: 2,
-            feature: {
-              id: (m: RouteArrow) => m.id,
-              geometry: {
-                fromModel: (m: RouteArrow) => new Point(fromLonLat([m.lng, m.lat])),
-                applyGeometryToModel: (prev: RouteArrow) => prev,
-              },
-              style: {
-                base: (m: RouteArrow) => ({ rotation: m.rotation }),
-                render: (opts: { rotation: number }) => new Style({
-                  image: new RegularShape({
-                    points: 3,
-                    radius: 6,
-                    rotation: opts.rotation,
-                    fill: new Fill({ color: '#2563eb' }),
-                    stroke: new Stroke({ color: '#ffffff', width: 1 }),
-                  }),
-                }),
-              },
-            },
-          },
-          {
-            id: LAYER_ID.INTERMEDIATE_POINTS,
-            zIndex: 3,
-            feature: {
-              id: (m: RouteWaypoint) => m.id,
-              geometry: {
-                fromModel: (m: RouteWaypoint) => new Point(fromLonLat([m.lng, m.lat])),
-                applyGeometryToModel: (prev: RouteWaypoint, geom: Geometry): RouteWaypoint => {
-                  if (!(geom instanceof Point)) return prev;
-                  const [lng, lat] = toLonLat(geom.getCoordinates());
-                  return { ...prev, lng, lat };
-                },
-              },
-              style: {
-                base: (m: RouteWaypoint): PointStyleOpts => ({
-                  color: '#10b981', radius: 10, strokeColor: '#ffffff',
-                  label: this.intermediateLabels.get(m.id) ?? '',
-                }),
-                states: {
-                  DRAG: (): Partial<PointStyleOpts> => ({ color: '#f97316', radius: 11 }),
-                  HOVER: (): Partial<PointStyleOpts> => ({ strokeColor: '#f97316' }),
-                },
-                render: renderPoint,
-              },
-              interactions: {
-                hover: { cursor: 'pointer', state: 'HOVER' },
-                click: {
-                  enabled: () => this.phase === 'routed',
-                  onClick: ({ items, event }) => {
-                    if (items.length === 0) {
-                      const [lng, lat] = toLonLat(event.coordinate) as [number, number];
-                      this.zone.run(() => this.addIntermediatePoint(lng, lat, event.coordinate as number[]));
-                    }
-                    return true;
-                  },
-                },
-                translate: {
-                  cursor: 'grab', hitTolerance: 6, state: 'DRAG',
-                  onEnd: () => { this.fetchRoute(); return true; },
-                },
-              },
-            },
-          },
-          {
-            id: LAYER_ID.PRIMARY_POINTS,
-            zIndex: 4,
-            feature: {
-              id: (m: RouteWaypoint) => m.id,
-              geometry: {
-                fromModel: (m: RouteWaypoint) => new Point(fromLonLat([m.lng, m.lat])),
-                applyGeometryToModel: (prev: RouteWaypoint) => prev,
-              },
-              style: {
-                base: (m: RouteWaypoint): PointStyleOpts => ({
-                  color: '#2563eb', radius: 14, strokeColor: '#ffffff',
-                  label: String(m.orderIndex),
-                }),
-                states: {
-                  HOVER: (): Partial<PointStyleOpts> => ({ strokeColor: '#f97316' }),
-                },
-                render: renderPoint,
-              },
-              interactions: {
-                hover: { cursor: 'pointer', state: 'HOVER' },
-                click: {
-                  enabled: () => this.phase === 'placing',
-                  onClick: ({ items, event }) => {
-                    if (items.length === 0) {
-                      const [lng, lat] = toLonLat(event.coordinate) as [number, number];
-                      this.zone.run(() => this.addPrimaryPoint(lng, lat));
-                    }
-                    return true;
-                  },
-                },
-              },
-            },
-          },
-        ],
-      },
-      view: { centerLonLat: [27.5619, 53.9023], zoom: 11 },
-      osm: true,
-    };
   }
 }
