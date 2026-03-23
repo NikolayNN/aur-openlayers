@@ -10,7 +10,7 @@ Automatically publish the Angular library to npm when the version in `projects/l
 
 ## Requirements
 
-- Trigger: push to `master` branch
+- Trigger: push to `master` branch (+ `workflow_dispatch` for manual recovery)
 - Only publish when version in `projects/lib/package.json` actually changed
 - Run tests before publishing
 - Use npm Trusted Publishers (OIDC-based authentication)
@@ -24,7 +24,10 @@ Automatically publish the Angular library to npm when the version in `projects/l
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 ```
+
+`workflow_dispatch` allows manual re-trigger if a publish fails (network issue, npm outage, etc.).
 
 ### Permissions
 
@@ -34,26 +37,43 @@ permissions:
   id-token: write   # required for npm OIDC Trusted Publishers
 ```
 
+### Concurrency
+
+```yaml
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false   # don't cancel in-progress publishes
+```
+
 ### Job 1: `check-version`
 
-Compares version between current and previous commit.
+Compares the version in `projects/lib/package.json` against the npm registry.
 
-- `actions/checkout@v4` with `fetch-depth: 2`
-- Extract old version from `HEAD~1:projects/lib/package.json`
-- Extract new version from `projects/lib/package.json`
-- Set output `changed=true` if versions differ
+- `runs-on: ubuntu-latest`
+- `actions/checkout@v4`
+- Compare local version with published version on npm
+- Set output `changed=true` if local version is newer / different
 
 ```bash
-OLD=$(git show HEAD~1:projects/lib/package.json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version")
-NEW=$(node -p "require('./projects/lib/package.json').version")
-echo "changed=$( [ \"$OLD\" != \"$NEW\" ] && echo true || echo false )" >> $GITHUB_OUTPUT
+PUBLISHED=$(npm view aur-openlayers version 2>/dev/null || echo "0.0.0")
+LOCAL=$(jq -r .version projects/lib/package.json)
+echo "published=$PUBLISHED"
+echo "local=$LOCAL"
+echo "changed=$( [ "$PUBLISHED" != "$LOCAL" ] && echo true || echo false )" >> $GITHUB_OUTPUT
 ```
+
+Comparing against the npm registry (instead of git history) is more robust:
+- Works correctly on merge commits and first commits
+- Works with `workflow_dispatch` (no `github.event.before`)
+- Correctly retries failed publishes (version in npm still old)
 
 Output: `changed` (true/false)
 
 ### Job 2: `test`
 
-Condition: `needs.check-version.outputs.changed == 'true'`
+- `runs-on: ubuntu-latest`
+- Condition: `needs.check-version.outputs.changed == 'true'`
+- `needs: check-version`
 
 Steps:
 1. `actions/checkout@v4`
@@ -63,8 +83,10 @@ Steps:
 
 ### Job 3: `publish`
 
-Condition: `needs: [check-version, test]`
-Environment: `npm` (linked to npm Trusted Publisher config)
+- `runs-on: ubuntu-latest`
+- `needs: [check-version, test]`
+- Condition: `needs.check-version.outputs.changed == 'true'`
+- Environment: `npm` (linked to npm Trusted Publisher config)
 
 Steps:
 1. `actions/checkout@v4`
@@ -72,6 +94,14 @@ Steps:
 3. `npm ci`
 4. `npx ng build lib`
 5. `npm publish dist/lib --provenance --access public`
+
+## Edge Cases
+
+### Failed publish
+If `npm publish` fails (network, npm outage), the version on npm remains old. On the next push to master, `check-version` compares against npm and sees the version is still different → triggers a new publish attempt. Can also be manually re-triggered via `workflow_dispatch`.
+
+### Version already exists on npm
+If someone publishes the same version locally via `publish.bat`, the CI publish will fail with "version already exists". This is expected — bump the version for the next release.
 
 ## Manual Setup Required (npmjs.com)
 
@@ -92,6 +122,12 @@ Create a GitHub environment named `npm`:
 1. Go to repo Settings → Environments → New environment
 2. Name: `npm`
 3. No additional protection rules needed (optional: add reviewers for manual approval)
+
+## Post-Setup Cleanup
+
+After confirming that Trusted Publishers works:
+
+- Revoke the legacy npm auth token at https://www.npmjs.com/settings/~/tokens
 
 ## Files Changed
 
