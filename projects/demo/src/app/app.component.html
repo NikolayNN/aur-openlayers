@@ -1,33 +1,3 @@
 <main class="app">
-  <header class="app__header">
-    <h1>Демо карт</h1>
-    <p>Примеры использования библиотеки в отдельных компонентах.</p>
-  </header>
-
-
-    <nav class="app__nav">
-      <a routerLink="/simple-map" routerLinkActive="is-active">Статические точки</a>
-      <a routerLink="/simple-map-two-static-layers" routerLinkActive="is-active">Два статических слоя</a>
-      <a routerLink="/map-point-move" routerLinkActive="is-active">Перетаскивание точки</a>
-      <a routerLink="/map-point-change-style" routerLinkActive="is-active">Смена стиля точек</a>
-      <a routerLink="/map-point-zoom-labels" routerLinkActive="is-active">Подписи на разных зумах</a>
-      <a routerLink="/map-translate-threshold-events" routerLinkActive="is-active">Сравнение startThresholdPx и событий</a>
-      <a routerLink="/map-select-interaction" routerLinkActive="is-active">Выбор точки кликом</a>
-      <a routerLink="/map-click-interaction" routerLinkActive="is-active">Клик по карте (lat/lng)</a>
-      <a routerLink="/static-map-point-popup" routerLinkActive="is-active">Попап при наведении</a>
-      <a routerLink="/map-five-points-cluster" routerLinkActive="is-active">Кластеризаци точек</a>
-      <a routerLink="/map-line-drag-points" routerLinkActive="is-active">Линия между точками (drag)</a>
-      <a routerLink="/map-polygons-labels" routerLinkActive="is-active">Полигоны с подписями</a>
-      <a routerLink="/map-polygons-modify" routerLinkActive="is-active">Редактирование полигонов</a>
-      <a routerLink="/map-point-mutate" routerLinkActive="is-active">Редактирование точек через форму</a>
-      <a routerLink="/map-route-iterations" routerLinkActive="is-active">Маршрут с изменением порядка</a>
-      <a routerLink="/map-route-add-point" routerLinkActive="is-active">Маршрут с добавлением точки</a>
-      <a routerLink="/map-route-edit-point" routerLinkActive="is-active">Маршрут: редактировать одну точку</a>
-      <a routerLink="/map-route-drag" routerLinkActive="is-active">Маршрут с перетаскиванием</a>
-    </nav>
-
-
-  <section class="app__content">
-    <router-outlet/>
-  </section>
+  <router-outlet/>
 </main>
