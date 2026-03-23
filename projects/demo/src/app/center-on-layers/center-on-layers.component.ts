@@ -37,7 +37,7 @@ const POINTS_A = gen.getByIds(['minsk-arena', 'minsk-lake', 'minsk-island']);
 const POINTS_B = gen.getByIds(['minsk-library', 'minsk-botanical', 'minsk-parkstone']);
 const POINTS_C = gen.getByIds(['minsk-tractors', 'minsk-zoo', 'minsk-chizhovka']);
 
-const pointLayer = (id: string, color: string): VectorLayerDescriptor<MapPoint, Point, PointStyleOptions> => ({
+const pointLayer = (id: string, color: string) => ({
   id,
   feature: {
     id: (model: MapPoint) => model.id,
