@@ -8,6 +8,7 @@
 - Скрытые слои (`setVisible(false)`) пропускаются
 - Для кластеризованных слоёв используются исходные фичи (base source), а не кластеры
 - Extent-логика выносится в утилитную функцию для изолированного тестирования
+- `collectLayersExtent` — внутренняя утилита, не экспортируется через public-api
 
 ## Публичный API
 
@@ -36,6 +37,8 @@ export type VectorLayerApi<M, G extends Geometry> = {
 };
 ```
 
+`getExtent` добавляется как обязательное поле. Все реализации `VectorLayerApi` проходят через `VectorLayerBase`, внешних реализаций нет.
+
 ## Реализация
 
 ### `VectorLayerBase.getExtent()`
@@ -48,6 +51,10 @@ getExtent(): Extent | null {
 ```
 
 Используется `this.source` (а не `getCenterOnAllModelsSource()`), поэтому для кластеризованных слоёв возвращается extent исходных фич. Переопределение в `ClusteredVectorLayer` не нужно.
+
+> **Заметка:** Это поведение намеренно отличается от `centerOnAllModels()` на кластеризованных слоях.
+> `centerOnAllModels()` использует `getCenterOnAllModelsSource()`, который в `ClusteredVectorLayer` возвращает кластерный source (текущие кластеры зависят от зума).
+> `getExtent()` всегда возвращает extent базовых фич — это нужно для корректного кросс-слойного центрирования, где extent должен отражать реальное расположение данных.
 
 ### Утилита `collectLayersExtent` в `fit-layer.utils.ts`
 
@@ -86,6 +93,8 @@ centerOnLayers: (layerIds, opts?) => {
 },
 ```
 
+> **Заметка:** Замыкание захватывает ссылку на объект `layers` — тот же мутабельный объект, что и `MapContext.layers`. Это консистентно с тем, как `batch` захватывает `scheduler`.
+
 ## Затрагиваемые файлы
 
 | Файл | Изменение |
@@ -94,7 +103,6 @@ centerOnLayers: (layerIds, opts?) => {
 | `runtime/vector-layer-base.ts` | Реализация `getExtent()` |
 | `runtime/fit-layer.utils.ts` | Утилита `collectLayersExtent` |
 | `runtime/map-context.ts` | Реализация двух методов в фабрике `createMapContext` |
-| `public-api.ts` | Экспорт `collectLayersExtent` (если нужен внешний доступ) |
 
 ## Тестирование
 
@@ -102,12 +110,16 @@ centerOnLayers: (layerIds, opts?) => {
    - Агрегация extent из нескольких слоёв
    - Скрытые слои пропускаются
    - Несуществующие layerIds игнорируются
-   - Пустой результат → `null`
+   - Пустой массив `layerIds` (`[]`) → `null` (не fallback на все слои)
+   - Все слои без фич → `null`
 
 2. **Unit-тест методов на `MapContext`** — через `createMapContext` с мок-слоями:
    - `centerOnAllLayers` вызывает `view.fit` с правильным extent
    - `centerOnLayers` с подмножеством слоёв
    - No-op когда extent пустой
-   - Передача `ViewFitOptions`
+   - Передача `ViewFitOptions` (padding, duration, maxZoom)
 
-3. **Unit-тест `getExtent` на `VectorLayerBase`** — возвращает extent базового source, а не кластерного
+3. **Unit-тест `getExtent` на `VectorLayerBase`**:
+   - Возвращает extent базового source
+   - На кластеризованном слое возвращает extent исходных фич, а не кластеров
+   - Пустой source → `null`
