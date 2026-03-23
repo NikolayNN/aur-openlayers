@@ -133,4 +133,27 @@ describe('PlainVectorLayer', () => {
     expect(invalidateCount).toBe(1);
     expect(changes).toBe(0);
   });
+
+  it('getExtent returns extent of all features', () => {
+    const source = new VectorSource<Point>();
+    const layer = new VectorLayer({ source });
+    const ctx = createCtx();
+    const plainLayer = new PlainVectorLayer({
+      descriptor,
+      layer,
+      source,
+      ctx,
+      scheduleInvalidate: () => undefined,
+    });
+
+    expect(plainLayer.getExtent()).toBeNull();
+
+    plainLayer.setModels([
+      { id: 'a', coords: [1, 2] },
+      { id: 'b', coords: [10, 20] },
+    ]);
+
+    const extent = plainLayer.getExtent();
+    expect(extent).toEqual([1, 2, 10, 20]);
+  });
 });

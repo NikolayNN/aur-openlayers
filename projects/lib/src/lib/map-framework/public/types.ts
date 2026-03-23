@@ -413,6 +413,12 @@ export type VectorLayerApi<M, G extends Geometry> = VectorLayerCollectionApi<M> 
    * Сбросить состояния стиля у фич к состоянию по умолчанию.
    */
   clearFeatureStates: (ids: Id | ReadonlyArray<Id>) => void;
+
+  /**
+   * Возвращает extent всех фич базового источника (без кластеризации).
+   * Возвращает null, если фич нет.
+   */
+  getExtent: () => import('ol/extent').Extent | null;
 };
 
 /**

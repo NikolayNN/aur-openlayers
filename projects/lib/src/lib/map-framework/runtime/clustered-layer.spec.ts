@@ -235,6 +235,19 @@ describe('ClusteredVectorLayer', () => {
     });
   });
 
+  it('getExtent returns base source extent, not cluster source extent', () => {
+    const { api, source } = createLayerSetup(true);
+    expect(api.getExtent()).toBeNull();
+
+    api.setModels([
+      { id: 'a', coords: [0, 0] },
+      { id: 'b', coords: [100, 100] },
+    ]);
+
+    const extent = api.getExtent();
+    expect(extent).toEqual([0, 0, 100, 100]);
+  });
+
   it('uses regular style for single clusters and clusterStyle for size > 1', () => {
     const { descriptor, baseSpy, renderSpy, clusterRenderSpy } = createDescriptor();
     const source = new VectorSource<Point>();

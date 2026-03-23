@@ -246,6 +246,11 @@ export abstract class VectorLayerBase<M, G extends Geometry, OPTS extends object
     this.ctx.map.getView().fit(extent, toOlFitOptions(opts));
   }
 
+  getExtent(): import('ol/extent').Extent | null {
+    const extent = this.source.getExtent();
+    return isEmpty(extent) ? null : extent;
+  }
+
   setVisible(visible: boolean): void {
     this.layer.setVisible(visible);
   }
