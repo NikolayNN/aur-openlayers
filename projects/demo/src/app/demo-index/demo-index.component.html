@@ -1,0 +1,18 @@
+<section class="demo-index">
+  <header class="demo-index__header">
+    <h1>Демо карт</h1>
+    <p>Примеры использования библиотеки в отдельных компонентах.</p>
+  </header>
+
+  <div class="demo-index__grid">
+    <a
+      *ngFor="let demo of demos"
+      [routerLink]="demo.path"
+      class="demo-card"
+    >
+      <span class="demo-card__component">{{ demo.component }}</span>
+      <span class="demo-card__title">{{ demo.title }}</span>
+      <span class="demo-card__description">{{ demo.description }}</span>
+    </a>
+  </div>
+</section>
