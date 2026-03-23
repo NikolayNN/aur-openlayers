@@ -24,6 +24,7 @@ jobs:
       - name: Compare local version with npm registry
         id: compare
         run: |
+          set -euo pipefail
           PUBLISHED=$(npm view aur-openlayers version 2>/dev/null || echo "0.0.0")
           LOCAL=$(jq -r .version projects/lib/package.json)
           echo "Published version: $PUBLISHED"
@@ -59,7 +60,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org'
           cache: npm
 
       - name: Install dependencies
