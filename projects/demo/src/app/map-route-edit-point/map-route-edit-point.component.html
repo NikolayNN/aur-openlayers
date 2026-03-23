@@ -1,11 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Маршрут и редактирование одной точки</h2>
-    <p>
-      Слева список точек маршрута. Выберите точку по кнопке «Редактировать» и на карте можно
-      перетаскивать только её. Описано как сделать чтобы можно было сделать перетаскивание только для выбранной точки
-    </p>
-  </header>
+  <app-demo-header
+    title="Маршрут и редактирование одной точки"
+    component="MapRouteEditPointComponent"
+    description="Выберите точку по кнопке «Редактировать» и на карте можно перетаскивать только её."
+    [features]="['translate с enabled filter', 'select', 'conditional dragging']"
+    [interactions]="['Выбор точки через кнопку «Редактировать»', 'Перетаскивание выбранной точки']"
+  />
 
   <div class="map-layout">
     <aside class="sidebar">

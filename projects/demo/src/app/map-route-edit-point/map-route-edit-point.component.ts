@@ -14,6 +14,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
+import {DemoHeaderComponent} from '../shared/demo-header/demo-header.component';
 import {
   applyGeometryToMapPoint,
   mapPointToGeometry,
@@ -46,7 +47,7 @@ class RouteLine {
 @Component({
   selector: 'app-map-route-edit-point',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-route-edit-point.component.html',
   styleUrl: './map-route-edit-point.component.scss',
 })

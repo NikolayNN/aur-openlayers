@@ -1,8 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Два слоя: точки и линия</h2>
-    <p>Карта с точками и линейным слоем, который можно скрывать и менять его прозрачность.</p>
-  </header>
+  <app-demo-header
+    title="Два слоя: точки и линия"
+    component="SimpleMapTwoStaticLayersComponent"
+    description="Карта с точками и линейным слоем, который можно скрывать и менять его прозрачность."
+    [features]="['multiple layers', 'layer visibility toggle', 'opacity control']"
+    [interactions]="['Кнопка скрытия слоя', 'Ползунок прозрачности']"
+  />
 
   <button type="button" (click)="toggleLineLayer()">
     {{ lineVisible ? 'Скрыть линию' : 'Показать линию' }}

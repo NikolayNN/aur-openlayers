@@ -5,6 +5,7 @@ import {
   VectorLayerDescriptor,
 } from '../../../../lib/src/lib/map-framework';
 import {MapHostComponent, MapHostConfig} from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import type Geometry from 'ol/geom/Geometry';
 import {fromLonLat} from 'ol/proj';
 import Point from 'ol/geom/Point';
@@ -48,7 +49,7 @@ const POINTS = new MapPointGenerator().getByCount(3);
 @Component({
   selector: 'app-simple-map-two-static-layers',
   standalone: true,
-  imports: [MapHostComponent],
+  imports: [MapHostComponent, DemoHeaderComponent],
   templateUrl: './simple-map-two-static-layers.component.html',
   styleUrl: './simple-map-two-static-layers.component.scss'
 })

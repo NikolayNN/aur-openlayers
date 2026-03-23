@@ -8,6 +8,7 @@ import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import { MapContext, VectorLayerDescriptor } from '../../../../lib/src/lib/map-framework';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
+import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
 import { applyGeometryToMapPoint, mapPointToGeometry, MapPoint } from '../shared/map-point';
 
 type PointStyleOptions = {
@@ -30,7 +31,7 @@ const MAX_LOG_SIZE = 120;
 @Component({
   selector: 'app-map-translate-threshold-events',
   standalone: true,
-  imports: [CommonModule, MapHostComponent],
+  imports: [CommonModule, MapHostComponent, DemoHeaderComponent],
   templateUrl: './map-translate-threshold-events.component.html',
   styleUrl: './map-translate-threshold-events.component.scss',
 })

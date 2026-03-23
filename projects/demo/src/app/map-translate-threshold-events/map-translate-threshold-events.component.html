@@ -1,12 +1,11 @@
 <section class="map-container">
-  <header class="map-header">
-    <h2>Сравнение translate.startThresholdPx</h2>
-    <p>
-      Взаимодействуйте с точками на двух картах и сравните порядок событий:
-      <code>onSelect</code>, <code>onClear</code>, <code>onDragStart</code>, <code>onDragChange</code>,
-      <code>onDragEnd</code>.
-    </p>
-  </header>
+  <app-demo-header
+    title="Сравнение translate.startThresholdPx"
+    component="MapTranslateThresholdEventsComponent"
+    description="Взаимодействуйте с точками на двух картах и сравните порядок событий: onSelect, onClear, onDragStart, onDragChange, onDragEnd."
+    [features]="['translate.startThresholdPx', 'onSelect', 'onDragStart', 'onDragEnd']"
+    [interactions]="['Перетаскивание точек на обеих картах', 'Сравнение событий в логах']"
+  />
 
   <div class="maps-grid">
     <article class="map-card">
