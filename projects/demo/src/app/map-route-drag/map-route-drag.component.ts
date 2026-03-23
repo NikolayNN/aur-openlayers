@@ -337,7 +337,6 @@ export class MapRouteDragComponent implements OnDestroy {
               },
               interactions: {
                 modify: {
-                  enabled: () => this.phase === 'routed',
                   cursor: 'grab',
                   hitTolerance: 10,
                   state: 'MODIFY',
