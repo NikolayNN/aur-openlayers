@@ -71,6 +71,7 @@ export class MapRouteDragComponent implements OnDestroy {
   private unsubscribes: (() => void)[] = [];
   private lastRouteCoords3857: number[][] = [];
   private intermediateLabels = new Map<string, string>();
+  private map?: import('ol/Map').default;
 
   readonly mapConfig: MapHostConfig<readonly VectorLayerDescriptor<any, Geometry, any>[]>;
 
@@ -87,6 +88,9 @@ export class MapRouteDragComponent implements OnDestroy {
     this.intermediateLayerApi = ctx.layers[LAYER_ID.INTERMEDIATE_POINTS] as VectorLayerApi<RouteWaypoint, Geometry> | undefined;
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<RouteLine, LineString> | undefined;
     this.arrowLayerApi = ctx.layers[LAYER_ID.ROUTE_ARROWS] as VectorLayerApi<RouteArrow, Geometry> | undefined;
+    this.map = ctx.map;
+
+    ctx.map.on('moveend', () => this.updateArrows());
 
     const unsub = this.intermediateLayerApi?.onModelsChanged?.((changes) => {
       this.zone.run(() => {
@@ -154,6 +158,14 @@ export class MapRouteDragComponent implements OnDestroy {
       .sort((a, b) => a.orderIndex - b.orderIndex);
   }
 
+  private updateArrows(): void {
+    if (this.lastRouteCoords3857.length < 2) return;
+    const resolution = this.map?.getView().getResolution() ?? 1;
+    // Scale interval with resolution: ~80px between arrows on screen
+    const interval = Math.max(100, resolution * 80);
+    this.arrowLayerApi?.setModels(generateRouteArrows(this.lastRouteCoords3857, interval));
+  }
+
   private recalcIntermediateLabels(): void {
     this.intermediateLabels.clear();
     let lastPrimaryIndex = 0;
@@ -184,7 +196,7 @@ export class MapRouteDragComponent implements OnDestroy {
 
       this.lastRouteCoords3857 = result.coords3857;
       this.lineLayerApi?.setModels([{ id: 'route', coordinates: result.coordsLonLat }]);
-      this.arrowLayerApi?.setModels(generateRouteArrows(result.coords3857));
+      this.updateArrows();
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       console.error('Fetch error:', err);
