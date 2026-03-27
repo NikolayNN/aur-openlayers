@@ -1,7 +1,6 @@
 import { Component, NgZone, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type Geometry from 'ol/geom/Geometry';
-import type OlMap from 'ol/Map';
 import { LineString } from 'ol/geom';
 import {
   MapContext,
@@ -10,8 +9,8 @@ import {
 } from '../../../../lib/src/lib/map-framework';
 import { MapHostComponent, MapHostConfig } from '../shared/map-host/map-host.component';
 import { DemoHeaderComponent } from '../shared/demo-header/demo-header.component';
-import { RouteWaypoint, RouteLine, RouteArrow, LAYER_ID } from './route-drag.models';
-import { computeOrderIndexForClick, generateRouteArrows } from './geometry.utils';
+import { RouteWaypoint, RouteLine, LAYER_ID } from './route-drag.models';
+import { computeOrderIndexForClick } from './geometry.utils';
 import { fetchOsrmRoute } from './osrm.service';
 import { buildMapConfig } from './route-drag.schema';
 
@@ -36,10 +35,8 @@ export class MapRouteDragComponent implements OnDestroy {
   private primaryLayerApi?: VectorLayerApi<RouteWaypoint, Geometry>;
   private intermediateLayerApi?: VectorLayerApi<RouteWaypoint, Geometry>;
   private lineLayerApi?: VectorLayerApi<RouteLine, LineString>;
-  private arrowLayerApi?: VectorLayerApi<RouteArrow, Geometry>;
   private unsubscribes: (() => void)[] = [];
   private lastRouteCoords3857: number[][] = [];
-  private map?: OlMap;
 
   constructor(private readonly zone: NgZone) {
     this.mapConfig = buildMapConfig({
@@ -70,10 +67,6 @@ export class MapRouteDragComponent implements OnDestroy {
     this.primaryLayerApi = ctx.layers[LAYER_ID.PRIMARY_POINTS] as VectorLayerApi<RouteWaypoint, Geometry> | undefined;
     this.intermediateLayerApi = ctx.layers[LAYER_ID.INTERMEDIATE_POINTS] as VectorLayerApi<RouteWaypoint, Geometry> | undefined;
     this.lineLayerApi = ctx.layers[LAYER_ID.ROUTE_LINE] as VectorLayerApi<RouteLine, LineString> | undefined;
-    this.arrowLayerApi = ctx.layers[LAYER_ID.ROUTE_ARROWS] as VectorLayerApi<RouteArrow, Geometry> | undefined;
-    this.map = ctx.map;
-
-    ctx.map.on('moveend', () => this.updateArrows());
 
     const syncPoints = (
       list: () => RouteWaypoint[],
@@ -108,7 +101,6 @@ export class MapRouteDragComponent implements OnDestroy {
     this.lastRouteCoords3857 = [];
     this.intermediateLayerApi?.clear();
     this.lineLayerApi?.clear();
-    this.arrowLayerApi?.clear();
     this.rebuildSorted();
   }
 
@@ -143,12 +135,6 @@ export class MapRouteDragComponent implements OnDestroy {
       .sort((a, b) => a.orderIndex - b.orderIndex);
   }
 
-  private updateArrows(): void {
-    if (this.lastRouteCoords3857.length < 2) return;
-    const resolution = this.map?.getView().getResolution() ?? 1;
-    this.arrowLayerApi?.setModels(generateRouteArrows(this.lastRouteCoords3857, Math.max(100, resolution * 80)));
-  }
-
   private async fetchRoute(): Promise<void> {
     if (this.sortedWaypoints.length < 2) return;
 
@@ -162,7 +148,6 @@ export class MapRouteDragComponent implements OnDestroy {
 
       this.lastRouteCoords3857 = result.coords3857;
       this.lineLayerApi?.setModels([{ id: 'route', coordinates: result.coordsLonLat }]);
-      this.updateArrows();
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       console.error('Fetch error:', err);

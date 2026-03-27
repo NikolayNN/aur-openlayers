@@ -9,7 +9,7 @@ import Style from 'ol/style/Style';
 import Text from 'ol/style/Text';
 import type { VectorLayerDescriptor } from '../../../../lib/src/lib/map-framework';
 import type { MapHostConfig } from '../shared/map-host/map-host.component';
-import { RouteWaypoint, RouteLine, RouteArrow, LAYER_ID } from './route-drag.models';
+import { RouteWaypoint, RouteLine, LAYER_ID } from './route-drag.models';
 
 type LineStyleOpts = { color: string; width: number };
 
@@ -67,26 +67,17 @@ export function buildMapConfig(
               render: (opts: LineStyleOpts) =>
                 new Style({ stroke: new Stroke({ color: opts.color, width: opts.width }) }),
             },
-          },
-        },
-        {
-          id: LAYER_ID.ROUTE_ARROWS,
-          zIndex: 2,
-          feature: {
-            id: (m: RouteArrow) => m.id,
-            geometry: {
-              fromModel: (m: RouteArrow) => new Point(fromLonLat([m.lng, m.lat])),
-              applyGeometryToModel: (prev: RouteArrow) => prev,
-            },
-            style: {
-              base: (m: RouteArrow) => ({ rotation: m.rotation }),
-              render: (opts: { rotation: number }) => new Style({
-                image: new RegularShape({
-                  points: 3, radius: 6, rotation: opts.rotation,
-                  fill: new Fill({ color: '#2563eb' }),
-                  stroke: new Stroke({ color: '#ffffff', width: 1 }),
+            decorations: {
+              arrows: {
+                interval: (view) => Math.max(100, view.resolution * 80),
+                style: ({ rotation }) => new Style({
+                  image: new RegularShape({
+                    points: 3, radius: 6, rotation,
+                    fill: new Fill({ color: '#2563eb' }),
+                    stroke: new Stroke({ color: '#ffffff', width: 1 }),
+                  }),
                 }),
-              }),
+              },
             },
           },
         },
