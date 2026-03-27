@@ -1,5 +1,6 @@
 import Map from 'ol/Map';
 import Point from 'ol/geom/Point';
+import LineString from 'ol/geom/LineString';
 import View from 'ol/View';
 import Style from 'ol/style/Style';
 
@@ -61,5 +62,61 @@ describe('LayerManager', () => {
     expect(callbacks.length).toBe(initialCallbacks + 1);
     callbacks[callbacks.length - 1](0);
     expect(changedSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates decoration layer when descriptor has decorations.arrows', () => {
+    const callbacks: FrameRequestCallback[] = [];
+    spyOn(window, 'requestAnimationFrame').and.callFake((cb) => {
+      callbacks.push(cb);
+      return callbacks.length;
+    });
+    spyOn(window, 'cancelAnimationFrame').and.stub();
+
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      layers: [
+        {
+          id: 'route',
+          zIndex: 1,
+          feature: {
+            id: (model: { id: string; coords: number[][] }) => model.id,
+            geometry: {
+              fromModel: (model: { coords: number[][] }) =>
+                new LineString(model.coords),
+              applyGeometryToModel: (prev: any) => prev,
+            },
+            style: {
+              base: () => ({ w: 1 }),
+              render: () => new Style(),
+            },
+            decorations: {
+              arrows: {
+                interval: 50,
+                style: () => new Style(),
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const map = createMap();
+    const initialLayers = map.getLayers().getLength();
+    const manager = LayerManager.create(map, schema);
+
+    // LayerManager adds 1 user layer + 1 decoration layer
+    expect(map.getLayers().getLength()).toBe(initialLayers + 2);
+
+    // Decoration layer is not in the public API
+    expect(manager.getApi('route')).toBeDefined();
+
+    // Set models and flush RAF to trigger arrow generation
+    manager.getApi('route')!.setModels([{ id: 'r1', coords: [[0, 0], [200, 0]] }]);
+    while (callbacks.length > 0) {
+      callbacks.shift()!(0);
+    }
+
+    // Cleanup
+    manager.dispose();
+    expect(map.getLayers().getLength()).toBe(initialLayers);
   });
 });
