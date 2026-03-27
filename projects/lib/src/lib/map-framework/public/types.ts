@@ -514,6 +514,41 @@ export type MapController = {
 };
 
 /**
+ * Конфигурация стрелок направления вдоль LineString.
+ */
+export type ArrowDecoration = {
+  /**
+   * Расстояние между стрелками в метрах.
+   * Функция — для адаптации интервала к масштабу.
+   *
+   * @example
+   * interval: (view) => Math.max(100, view.resolution * 80)
+   */
+  interval: MaybeFn<number, [view: StyleView]>;
+
+  /**
+   * Стиль стрелки.
+   * Получает rotation (радианы, по часовой от севера — конвенция OL)
+   * и текущий вид карты.
+   */
+  style: (args: { rotation: number; view: StyleView }) => Style | Style[];
+
+  /**
+   * Смещение первой стрелки от начала линии как доля интервала (0–1).
+   * По умолчанию: 0.5.
+   */
+  offsetRatio?: number;
+};
+
+/**
+ * Декоративные элементы вдоль LineString-геометрий.
+ */
+export type LineDecorations = {
+  /** Стрелки направления вдоль линии. */
+  arrows?: ArrowDecoration;
+};
+
+/**
  * Описание фичи: геометрия, стиль, взаимодействия и popup.
  *
  * @example
@@ -728,6 +763,11 @@ export interface FeatureDescriptor<M, G extends Geometry, OPTS extends object> {
       event?: MapBrowserEvent<UIEvent>;
     }) => PopupItem<M>;
   };
+  /**
+   * Декоративные элементы вдоль LineString-геометрий.
+   * Игнорируется для не-LineString геометрий.
+   */
+  decorations?: LineDecorations;
 }
 
 /**
