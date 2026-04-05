@@ -99,7 +99,7 @@ export class ArrowDecorationManager {
     const parentZ = this.parentLayer.getZIndex() ?? 0;
     this.layer = new VectorLayer({
       source: this.source,
-      zIndex: parentZ + 1,
+      zIndex: parentZ + 2,
     });
     this.layer.set('id', `__decoration_arrows`);
     this.map.addLayer(this.layer);

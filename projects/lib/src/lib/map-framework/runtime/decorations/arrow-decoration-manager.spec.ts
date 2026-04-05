@@ -85,7 +85,7 @@ describe('ArrowDecorationManager', () => {
 
     expect(map.getLayers().getLength()).toBe(initialLayerCount + 1);
     const arrowLayer = map.getLayers().item(map.getLayers().getLength() - 1) as VectorLayer;
-    expect(arrowLayer.getZIndex()).toBe(6);
+    expect(arrowLayer.getZIndex()).toBe(7);
 
     manager.dispose();
   });
