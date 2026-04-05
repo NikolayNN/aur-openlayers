@@ -3,6 +3,7 @@ import Point from 'ol/geom/Point';
 import LineString from 'ol/geom/LineString';
 import View from 'ol/View';
 import Style from 'ol/style/Style';
+import Fill from 'ol/style/Fill';
 
 import type { MapSchema, VectorLayerDescriptor } from '../public/types';
 import { LayerManager } from './layer-manager';
@@ -111,6 +112,72 @@ describe('LayerManager', () => {
 
     // Set models and flush RAF to trigger arrow generation
     manager.getApi('route')!.setModels([{ id: 'r1', coords: [[0, 0], [200, 0]] }]);
+    while (callbacks.length > 0) {
+      callbacks.shift()!(0);
+    }
+
+    // Cleanup
+    manager.dispose();
+    expect(map.getLayers().getLength()).toBe(initialLayers);
+  });
+
+  it('creates both buffer and arrow decoration layers when both are configured', () => {
+    const callbacks: FrameRequestCallback[] = [];
+    spyOn(window, 'requestAnimationFrame').and.callFake((cb) => {
+      callbacks.push(cb);
+      return callbacks.length;
+    });
+    spyOn(window, 'cancelAnimationFrame').and.stub();
+
+    const schema: MapSchema<readonly VectorLayerDescriptor<any, any, any, any>[]> = {
+      layers: [
+        {
+          id: 'route',
+          zIndex: 1,
+          feature: {
+            id: (model: { id: string; coords: number[][] }) => model.id,
+            geometry: {
+              fromModel: (model: { coords: number[][] }) =>
+                new LineString(model.coords),
+              applyGeometryToModel: (prev: any) => prev,
+            },
+            style: {
+              base: () => ({ w: 1 }),
+              render: () => new Style(),
+            },
+            decorations: {
+              arrows: {
+                interval: 50,
+                style: () => new Style(),
+              },
+              buffer: {
+                distance: 100,
+                style: new Style({ fill: new Fill({ color: 'rgba(0,0,255,0.2)' }) }),
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const map = createMap();
+    const initialLayers = map.getLayers().getLength();
+    const manager = LayerManager.create(map, schema);
+
+    // 1 user layer + 1 arrow layer + 1 buffer layer = 3
+    expect(map.getLayers().getLength()).toBe(initialLayers + 3);
+
+    // Verify z-index ordering: buffer(1) < parent(1+1=2 via addLayer) < arrows(3)
+    const layers = map.getLayers().getArray();
+    const bufferLayer = layers.find((l) => l.get('id') === '__decoration_buffer');
+    const arrowLayer = layers.find((l) => l.get('id') === '__decoration_arrows');
+    expect(bufferLayer).toBeDefined();
+    expect(arrowLayer).toBeDefined();
+    expect(bufferLayer!.getZIndex()).toBe(1);   // parentZIndex
+    expect(arrowLayer!.getZIndex()).toBe(3);    // parentZIndex + 2
+
+    // Set models and flush to trigger generation
+    manager.getApi('route')!.setModels([{ id: 'r1', coords: [[0, 0], [1000, 0]] }]);
     while (callbacks.length > 0) {
       callbacks.shift()!(0);
     }
