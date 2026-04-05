@@ -241,4 +241,16 @@ export const routes: Routes = [
         (m) => m.CenterOnLayersComponent,
       ),
   },
+  {
+    path: 'map-line-buffer',
+    data: {
+      title: 'Буферная зона вдоль линии',
+      component: 'MapLineBufferComponent',
+      description: 'Декларативный буферный полигон (коридор) вокруг LineString с управлением шириной.',
+    },
+    loadComponent: () =>
+      import('./map-line-buffer/map-line-buffer.component').then(
+        (m) => m.MapLineBufferComponent,
+      ),
+  },
 ];

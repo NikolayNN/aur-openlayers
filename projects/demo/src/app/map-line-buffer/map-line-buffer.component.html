@@ -1,0 +1,77 @@
+<section class="map-container">
+  <app-demo-header
+    title="Буферная зона вдоль линии"
+    component="MapLineBufferComponent"
+    description="Декларативный буферный полигон (коридор) вокруг LineString с управлением шириной, прозрачностью и формой торцов."
+    [features]="['decorations.buffer', 'decorations.arrows', 'buffer distance control', 'opacity control']"
+    [interactions]="['Слайдер ширины буфера', 'Слайдер прозрачности', 'Переключение торцов']"
+  />
+
+  <div class="map-layout">
+    <aside class="map-info">
+      <div class="map-info__header">
+        <h3>Управление буфером</h3>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">
+          Ширина буфера: <strong>{{ bufferDistance }} м</strong>
+        </label>
+        <input
+          type="range"
+          class="control-slider"
+          [min]="50"
+          [max]="3000"
+          [step]="50"
+          [ngModel]="bufferDistance"
+          (ngModelChange)="onDistanceChange($event)"
+        />
+        <span class="control-range-hint">50 м — 3000 м</span>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">
+          Прозрачность: <strong>{{ bufferOpacity | number:'1.2-2' }}</strong>
+        </label>
+        <input
+          type="range"
+          class="control-slider"
+          [min]="0.05"
+          [max]="0.8"
+          [step]="0.05"
+          [ngModel]="bufferOpacity"
+          (ngModelChange)="onOpacityChange($event)"
+        />
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">Торцы</label>
+        <div class="control-buttons">
+          <button
+            type="button"
+            class="btn"
+            [class.btn--active]="cap === 'round'"
+            (click)="onCapChange('round')"
+          >
+            Round
+          </button>
+          <button
+            type="button"
+            class="btn"
+            [class.btn--active]="cap === 'flat'"
+            (click)="onCapChange('flat')"
+          >
+            Flat
+          </button>
+        </div>
+      </div>
+
+      <div class="map-info__hint">
+        <p>Полная ширина коридора: <strong>{{ bufferDistance * 2 }} м</strong></p>
+        <p>Буферный полигон автоматически обновляется при изменении параметров.</p>
+      </div>
+    </aside>
+
+    <mff-map-host class="map-canvas" [config]="mapConfig" (ready)="onReady($event)"></mff-map-host>
+  </div>
+</section>
