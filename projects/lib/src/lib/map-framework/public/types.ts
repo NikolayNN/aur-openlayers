@@ -541,11 +541,27 @@ export type ArrowDecoration = {
 };
 
 /**
+ * Конфигурация буферного полигона (коридора) вдоль LineString.
+ */
+export type BufferDecoration = {
+  /** Ширина буфера в метрах (в одну сторону — полная ширина = distance * 2). */
+  distance: number;
+
+  /** Стиль буферного полигона (OL Style). */
+  style: Style | Style[];
+
+  /** Форма торцов. По умолчанию: 'round'. */
+  cap?: 'round' | 'flat';
+};
+
+/**
  * Декоративные элементы вдоль LineString-геометрий.
  */
 export type LineDecorations = {
   /** Стрелки направления вдоль линии. */
   arrows?: ArrowDecoration;
+  /** Буферный полигон (коридор) вокруг линии. */
+  buffer?: BufferDecoration;
 };
 
 /**
