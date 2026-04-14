@@ -154,6 +154,38 @@ describe('BufferDecorationManager', () => {
     manager.dispose();
   });
 
+  it('restores features after hide → zoom → show', () => {
+    const { map, parentLayer, api } = createTestSetup();
+    const manager = new BufferDecorationManager({
+      map,
+      parentLayer,
+      parentApi: api,
+      config: { distance: 100, style: bufferStyle },
+    });
+
+    api.setModels([{ id: 'line1', coords: [[0, 0], [500, 0]] }]);
+    flushRAF();
+
+    const bufferLayer = map.getLayers().item(map.getLayers().getLength() - 1) as VectorLayer;
+    const bufferSource = bufferLayer.getSource() as VectorSource<Geometry>;
+    expect(bufferSource.getFeatures().length).toBe(1);
+
+    // hide
+    parentLayer.setVisible(false);
+    // simulate zoom change while hidden — clears source
+    map.dispatchEvent('moveend');
+    flushRAF();
+    expect(bufferSource.getFeatures().length).toBe(0);
+
+    // show — features must be regenerated
+    parentLayer.setVisible(true);
+    flushRAF();
+    expect(bufferLayer.getVisible()).toBe(true);
+    expect(bufferSource.getFeatures().length).toBe(1);
+
+    manager.dispose();
+  });
+
   it('handles MultiLineString — one polygon per sub-line', () => {
     const { map, parentLayer, source } = createTestSetup();
     const ctx = createMapContext(map, {});

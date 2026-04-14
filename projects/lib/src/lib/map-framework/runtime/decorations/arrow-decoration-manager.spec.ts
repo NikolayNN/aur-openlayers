@@ -196,6 +196,42 @@ describe('ArrowDecorationManager', () => {
     manager.dispose();
   });
 
+  it('restores features after hide → zoom → show', () => {
+    const { map, parentLayer, api } = createTestSetup();
+    const manager = new ArrowDecorationManager({
+      map,
+      parentLayer,
+      parentApi: api,
+      config: {
+        interval: 50,
+        style: () => dummyStyle(),
+        offsetRatio: 0,
+      },
+    });
+
+    api.setModels([{ id: 'line1', coords: [[0, 0], [200, 0]] }]);
+    flushRAF();
+
+    const arrowLayer = map.getLayers().item(map.getLayers().getLength() - 1) as VectorLayer;
+    const arrowSource = arrowLayer.getSource() as VectorSource<Point>;
+    expect(arrowSource.getFeatures().length).toBe(5);
+
+    // hide
+    parentLayer.setVisible(false);
+    // simulate zoom change while hidden — clears source
+    map.dispatchEvent('moveend');
+    flushRAF();
+    expect(arrowSource.getFeatures().length).toBe(0);
+
+    // show — features must be regenerated
+    parentLayer.setVisible(true);
+    flushRAF();
+    expect(arrowLayer.getVisible()).toBe(true);
+    expect(arrowSource.getFeatures().length).toBe(5);
+
+    manager.dispose();
+  });
+
   it('handles MultiLineString geometry', () => {
     const { map, parentLayer, source } = createTestSetup();
     const ctx = createMapContext(map, {});

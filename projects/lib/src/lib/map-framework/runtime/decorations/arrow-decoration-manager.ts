@@ -108,7 +108,12 @@ export class ArrowDecorationManager {
     this.syncVisibility();
     this.syncOpacity();
 
-    this.visibilityKey = this.parentLayer.on('change:visible', () => this.syncVisibility());
+    this.visibilityKey = this.parentLayer.on('change:visible', () => {
+      this.syncVisibility();
+      if (this.parentLayer.getVisible()) {
+        this.scheduleUpdate();
+      }
+    });
     this.moveEndKey = this.map.on('moveend', () => this.scheduleUpdate());
 
     this.unsubCollection = this.parentApi.onModelsCollectionChanged(() => this.scheduleUpdate());
